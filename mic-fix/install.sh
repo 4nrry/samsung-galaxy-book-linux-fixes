@@ -26,7 +26,8 @@ SOF_LEGACY_DIR="${FW_BASE}/sof"
 SOF_LEGACY_TPLG_DIR="${FW_BASE}/sof-tplg"
 
 MODPROBE_CONF="/etc/modprobe.d/sof-dsp-driver.conf"
-LINUX_FW_REPO="https://gitlab.com/kernel-firmware/linux-firmware.git"
+SOF_BIN_REPO="https://github.com/thesofproject/sof-bin"
+SOF_BIN_VER="v2025.12.2"
 
 echo "=== SOF Firmware Installer (Internal Mic Fix) ==="
 echo "Samsung Galaxy Book4 / Book5"
@@ -161,80 +162,66 @@ fi
 TMPDIR=$(mktemp -d)
 trap "rm -rf '$TMPDIR'" EXIT
 
-FW_PATHS="intel/sof-ipc4 intel/sof-ipc4-lib intel/sof-ace-tplg intel/sof intel/sof-tplg"
-
-# Download via GitLab path-filtered tarball (fast — only downloads the dirs we need)
-download_tarball() (
-    set +e
-    cd "$TMPDIR"
-    rm -rf linux-firmware
-    local path_params=""
-    for p in $FW_PATHS; do
-        path_params="${path_params}&path=${p}"
-    done
-    # Strip leading '&'
-    path_params="${path_params:1}"
-    local url="https://gitlab.com/kernel-firmware/linux-firmware/-/archive/main/linux-firmware-main.tar.gz?${path_params}"
-    echo "Downloading firmware via tarball..."
-    if curl -fsSL "$url" | tar xz; then
-        # GitLab path-filtered archives extract with a hash suffix
-        local extracted
-        extracted=$(ls -d linux-firmware-main-* 2>/dev/null | head -1)
-        if [ -n "$extracted" ]; then
-            mv "$extracted" linux-firmware
-        fi
-        if [ -d "linux-firmware/intel/sof-ipc4" ]; then
-            return 0
-        fi
-    fi
-    echo "  Tarball method did not produce expected files" >&2
-    return 1
-)
-
-# Download via git sparse checkout (fallback — downloads more data)
-download_git() (
-    set +e
-    command -v git >/dev/null 2>&1 || { echo "  git not installed, skipping git fallback" >&2; return 1; }
-    cd "$TMPDIR"
-    rm -rf linux-firmware
-    git init -q linux-firmware
-    cd linux-firmware
-    git remote add origin "$LINUX_FW_REPO"
-    git sparse-checkout init
-    git sparse-checkout set $FW_PATHS "WHENCE"
-    echo "Fetching firmware files via git (depth=1)..."
-    if git fetch --depth=1 origin main 2>&1; then
-        git checkout -q FETCH_HEAD
-        if [ -d "intel/sof-ipc4" ]; then
-            return 0
-        fi
-        echo "  git checkout did not produce expected files" >&2
-    fi
-    return 1
-)
+# SOF firmware comes from Intel's sof-bin releases on GitHub.
+# This is a 13 MB download containing all SOF firmware + topology files.
+# The linux-firmware GitLab repo no longer includes SOF firmware directly.
+SOF_BIN_TARBALL="sof-bin-${SOF_BIN_VER#v}.tar.gz"
+SOF_BIN_URL="${SOF_BIN_REPO}/releases/download/${SOF_BIN_VER}/${SOF_BIN_TARBALL}"
 
 echo ""
-echo "Downloading latest SOF firmware from linux-firmware repository..."
+echo "Downloading SOF firmware ${SOF_BIN_VER} from GitHub..."
+echo "  URL: ${SOF_BIN_URL}"
 
-# Try tarball first (small, fast), fall back to git sparse checkout
-if download_tarball; then
-    : # success
-elif echo "Tarball download failed, trying git sparse checkout..." >&2 && download_git; then
-    : # success
-else
-    echo "ERROR: Failed to download firmware files." >&2
+cd "$TMPDIR"
+
+# Download to file first (not piped — avoids silent truncation on flaky connections)
+if ! curl -fSL --retry 3 --retry-delay 2 -o "$SOF_BIN_TARBALL" "$SOF_BIN_URL" 2>&1; then
+    echo "ERROR: Failed to download SOF firmware." >&2
     echo "       Check your internet connection and try again." >&2
-    echo "       If the problem persists, file an issue at:" >&2
+    echo "       URL: ${SOF_BIN_URL}" >&2
+    exit 1
+fi
+
+# Verify download integrity
+if ! gzip -t "$SOF_BIN_TARBALL" 2>/dev/null; then
+    echo "ERROR: Downloaded file is corrupt (truncated gzip)." >&2
+    echo "       Try again — this is usually a network issue." >&2
+    rm -f "$SOF_BIN_TARBALL"
+    exit 1
+fi
+
+# Extract
+tar xzf "$SOF_BIN_TARBALL"
+rm -f "$SOF_BIN_TARBALL"
+
+# sof-bin extracts to sof-bin-<version>/
+SOF_BIN_DIR=$(ls -d sof-bin-* 2>/dev/null | head -1)
+if [ -z "$SOF_BIN_DIR" ] || [ ! -d "$SOF_BIN_DIR/sof-ipc4" ]; then
+    echo "ERROR: Unexpected archive structure — sof-ipc4 directory not found." >&2
+    echo "       Please file an issue at:" >&2
     echo "       https://github.com/Andycodeman/samsung-galaxy-book4-linux-fixes/issues" >&2
     exit 1
 fi
 
-# Subshell functions don't change parent's cwd
-cd "$TMPDIR/linux-firmware"
+# Restructure to match /lib/firmware/intel/ layout
+# sof-bin has: sof-bin-X.Y.Z/sof-ipc4/  → needs to go to intel/sof-ipc4/
+mkdir -p linux-firmware/intel
+for dir in sof sof-ipc4 sof-ipc4-lib sof-ipc4-tplg sof-tplg; do
+    if [ -d "$SOF_BIN_DIR/$dir" ]; then
+        cp -a "$SOF_BIN_DIR/$dir" "linux-firmware/intel/$dir"
+    fi
+done
+# sof-ace-tplg is a symlink to sof-ipc4-tplg in sof-bin
+if [ -L "$SOF_BIN_DIR/sof-ace-tplg" ] || [ -d "$SOF_BIN_DIR/sof-ace-tplg" ]; then
+    # Create the symlink in our staging area too
+    ln -sf sof-ipc4-tplg "linux-firmware/intel/sof-ace-tplg"
+elif [ -d "linux-firmware/intel/sof-ipc4-tplg" ]; then
+    ln -sf sof-ipc4-tplg "linux-firmware/intel/sof-ace-tplg"
+fi
 
-# Get the firmware version tag if possible
-FW_COMMIT=$(git log -1 --format="%h %s" 2>/dev/null || echo "tarball download")
-echo "Firmware source: ${FW_COMMIT}"
+rm -rf "$SOF_BIN_DIR"
+cd "$TMPDIR/linux-firmware"
+echo "  ✓ SOF firmware ${SOF_BIN_VER} downloaded ($(du -sh intel/ | cut -f1))"
 
 # ─── Backup Existing Firmware ────────────────────────────────────────────────
 
@@ -282,6 +269,10 @@ install_fw_dir "intel/sof-ipc4" "$SOF_IPC4_DIR"
     install_fw_dir "intel/sof-ipc4-lib" "$SOF_IPC4_LIB_DIR"
 }
 install_fw_dir "intel/sof-ace-tplg" "$SOF_ACE_TPLG_DIR"
+[ -d "intel/sof-ipc4-tplg" ] && {
+    mkdir -p "${FW_BASE}/sof-ipc4-tplg"
+    install_fw_dir "intel/sof-ipc4-tplg" "${FW_BASE}/sof-ipc4-tplg"
+}
 install_fw_dir "intel/sof" "$SOF_LEGACY_DIR"
 install_fw_dir "intel/sof-tplg" "$SOF_LEGACY_TPLG_DIR"
 
