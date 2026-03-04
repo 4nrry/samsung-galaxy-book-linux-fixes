@@ -38,7 +38,7 @@ echo "=============================================="
 echo ""
 
 # ──────────────────────────────────────────────
-# [1/16] Root check
+# [1/15] Root check
 # ──────────────────────────────────────────────
 if [[ $EUID -eq 0 ]]; then
     echo "ERROR: Don't run this as root. The script will use sudo where needed."
@@ -46,9 +46,9 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 # ──────────────────────────────────────────────
-# [2/16] Distro detection
+# [2/15] Distro detection
 # ──────────────────────────────────────────────
-echo "[2/16] Detecting distro..."
+echo "[2/15] Detecting distro..."
 if command -v pacman >/dev/null 2>&1; then
     DISTRO="arch"
     echo "  ✓ Arch-based distro detected"
@@ -96,10 +96,10 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [3/16] Hardware detection
+# [3/15] Hardware detection
 # ──────────────────────────────────────────────
 echo ""
-echo "[3/16] Verifying hardware..."
+echo "[3/15] Verifying hardware..."
 
 # Check for Lunar Lake IPU7
 IPU7_FOUND=false
@@ -150,10 +150,10 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [4/16] Kernel version check
+# [4/15] Kernel version check
 # ──────────────────────────────────────────────
 echo ""
-echo "[4/16] Checking kernel version..."
+echo "[4/15] Checking kernel version..."
 KVER=$(uname -r)
 KMAJOR=$(echo "$KVER" | cut -d. -f1)
 KMINOR=$(echo "$KVER" | cut -d. -f2)
@@ -175,10 +175,10 @@ fi
 echo "  ✓ Kernel ${KVER} (>= 6.18 required)"
 
 # ──────────────────────────────────────────────
-# [5/16] Install distro packages
+# [5/15] Install distro packages
 # ──────────────────────────────────────────────
 echo ""
-echo "[5/16] Installing required packages..."
+echo "[5/15] Installing required packages..."
 
 if [[ "$DISTRO" == "arch" ]]; then
     # Check what's missing
@@ -248,10 +248,10 @@ elif [[ "$DISTRO" == "ubuntu" ]]; then
 fi
 
 # ──────────────────────────────────────────────
-# [6/16] Build intel-vision-drivers via DKMS
+# [6/15] Build intel-vision-drivers via DKMS
 # ──────────────────────────────────────────────
 echo ""
-echo "[6/16] Installing intel_cvs module via DKMS..."
+echo "[6/15] Installing intel_cvs module via DKMS..."
 
 # Check if already installed and working
 if dkms status "vision-driver/${VISION_DRIVER_VER}" 2>/dev/null | grep -q "installed"; then
@@ -371,10 +371,10 @@ SIGNEOF
 fi
 
 # ──────────────────────────────────────────────
-# [7/16] Samsung camera rotation fix (ipu-bridge DKMS)
+# [7/15] Samsung camera rotation fix (ipu-bridge DKMS)
 # ──────────────────────────────────────────────
 echo ""
-echo "[7/16] Installing ipu-bridge camera rotation fix..."
+echo "[7/15] Installing ipu-bridge camera rotation fix..."
 
 # Samsung Galaxy Book5 Pro models (940XHA, 960XHA) have their OV02E10 sensor
 # mounted upside-down, but Samsung's BIOS reports rotation=0. The kernel's
@@ -467,10 +467,10 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [8/16] OV02E10 bayer order fix (patched libcamera)
+# [8/15] OV02E10 bayer order fix (patched libcamera)
 # ──────────────────────────────────────────────
 echo ""
-echo "[8/16] Checking for OV02E10 bayer order fix..."
+echo "[8/15] Checking for OV02E10 bayer order fix..."
 
 # Samsung Book5 models with the OV02E10 sensor mounted upside-down (rotation=180)
 # get purple/magenta tint after the ipu-bridge rotation fix is applied. This is
@@ -504,10 +504,10 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [9/16] Module load configuration
+# [9/15] Module load configuration
 # ──────────────────────────────────────────────
 echo ""
-echo "[9/16] Configuring module loading..."
+echo "[9/15] Configuring module loading..."
 
 # The full module chain for IPU7 camera on Lunar Lake:
 # usb_ljca -> gpio_ljca -> intel_cvs -> ov02c10/ov02e10
@@ -537,10 +537,10 @@ EOF
 echo "  ✓ Created /etc/modprobe.d/intel-ipu7-camera.conf"
 
 # ──────────────────────────────────────────────
-# [10/16] libcamera IPA module path
+# [10/15] libcamera IPA module path
 # ──────────────────────────────────────────────
 echo ""
-echo "[10/16] Configuring libcamera environment..."
+echo "[10/15] Configuring libcamera environment..."
 
 # Determine IPA path based on distro
 if [[ "$DISTRO" == "fedora" ]]; then
@@ -607,10 +607,10 @@ fi
 echo "  ✓ Created /etc/profile.d/libcamera-ipa.sh"
 
 # ──────────────────────────────────────────────
-# [11/16] Hide raw IPU7 V4L2 nodes from PipeWire
+# [11/15] Hide raw IPU7 V4L2 nodes from PipeWire
 # ──────────────────────────────────────────────
 echo ""
-echo "[11/16] Configuring WirePlumber to hide raw IPU7 V4L2 nodes..."
+echo "[11/15] Configuring WirePlumber to hide raw IPU7 V4L2 nodes..."
 
 # IPU7 exposes 32 raw V4L2 capture nodes that output bayer data unusable by
 # apps. Without this rule, PipeWire creates 32 "ipu7" camera sources that
@@ -653,10 +653,10 @@ if ! $WP_RULE_INSTALLED; then
 fi
 
 # ──────────────────────────────────────────────
-# [12/16] Install sensor color tuning file
+# [12/15] Install sensor color tuning file
 # ──────────────────────────────────────────────
 echo ""
-echo "[12/16] Installing libcamera color tuning file..."
+echo "[12/15] Installing libcamera color tuning file..."
 
 # libcamera's Software ISP uses uncalibrated.yaml by default, which has no
 # color correction matrix (CCM) — producing near-grayscale or green-tinted
@@ -701,10 +701,10 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [13/16] Camera relay tool (for non-PipeWire apps)
+# [13/15] Camera relay tool (for non-PipeWire apps)
 # ──────────────────────────────────────────────
 echo ""
-echo "[13/16] Installing camera relay tool..."
+echo "[13/15] Installing camera relay tool..."
 
 # Some apps (Zoom, OBS, VLC) don't support PipeWire/libcamera directly and
 # need a standard V4L2 device. The camera-relay tool creates an on-demand
@@ -813,81 +813,10 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [14/16] Enable PipeWire camera in Chromium browsers
+# [14/15] Load modules and test
 # ──────────────────────────────────────────────
 echo ""
-echo "[14/16] Configuring Chromium-based browsers for PipeWire camera..."
-
-# Chromium/Brave/Chrome use direct V4L2 by default and may not show the
-# v4l2loopback device. Enabling the PipeWire camera flag makes them use
-# the camera portal, which correctly sees all PipeWire camera sources.
-
-enable_pipewire_camera_flag() {
-    local browser_name="$1"
-    local state_file="$2"
-
-    if [[ ! -f "$state_file" ]]; then
-        return 1
-    fi
-
-    local profile_dir
-    profile_dir=$(dirname "$state_file")
-    if [[ -f "$profile_dir/SingletonLock" ]]; then
-        echo "  ⚠ $browser_name is running — close it first to enable the flag"
-        echo "    Then run: camera-relay enable-browser-flags"
-        return 1
-    fi
-
-    python3 -c "
-import json, sys
-state_file = sys.argv[1]
-flag = 'enable-webrtc-pipewire-camera'
-with open(state_file, 'r') as f:
-    data = json.load(f)
-browser = data.setdefault('browser', {})
-labs = browser.setdefault('enabled_labs_experiments', [])
-if flag + '@1' in labs:
-    sys.exit(2)
-labs = [e for e in labs if not e.startswith(flag + '@')]
-labs.append(flag + '@1')
-browser['enabled_labs_experiments'] = labs
-with open(state_file, 'w') as f:
-    json.dump(data, f)
-" "$state_file" 2>/dev/null
-    return $?
-}
-
-BROWSER_FLAGS_SET=false
-declare -A BROWSERS=(
-    ["Brave"]="$HOME/.config/BraveSoftware/Brave-Browser/Local State"
-    ["Chrome"]="$HOME/.config/google-chrome/Local State"
-    ["Chromium"]="$HOME/.config/chromium/Local State"
-)
-
-for browser_name in "${!BROWSERS[@]}"; do
-    state_file="${BROWSERS[$browser_name]}"
-    if [[ -f "$state_file" ]]; then
-        ret=0
-        enable_pipewire_camera_flag "$browser_name" "$state_file" || ret=$?
-        if [[ $ret -eq 0 ]]; then
-            echo "  ✓ Enabled PipeWire camera flag for $browser_name"
-            BROWSER_FLAGS_SET=true
-        elif [[ $ret -eq 2 ]]; then
-            echo "  ✓ $browser_name already has PipeWire camera flag enabled"
-        fi
-    fi
-done
-
-if ! $BROWSER_FLAGS_SET; then
-    echo "  No Chromium-based browsers found (or already configured)"
-    echo "  Firefox works without any flags"
-fi
-
-# ──────────────────────────────────────────────
-# [15/16] Load modules and test
-# ──────────────────────────────────────────────
-echo ""
-echo "[15/16] Loading modules and testing..."
+echo "[14/15] Loading modules and testing..."
 
 # Try to load LJCA and intel_cvs now
 for mod in usb_ljca gpio_ljca; do
@@ -926,7 +855,7 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [16/16] Summary
+# [15/15] Summary
 # ──────────────────────────────────────────────
 echo ""
 echo "=============================================="
@@ -945,7 +874,10 @@ echo "  Browser setup (if camera doesn't appear in browser):"
 echo "    Firefox:  about:config → media.webrtc.camera.allow-pipewire = true"
 echo "              For full resolution: media.navigator.video.default_width = 1920"
 echo "                                   media.navigator.video.default_height = 1080"
-echo "    Chrome:   chrome://flags → #enable-webrtc-pipewire-camera → Enabled"
+echo "    Chrome:   Works out of the box with the V4L2 camera relay"
+echo "    Troubleshooting: If your browser doesn't see the camera, try enabling"
+echo "      chrome://flags/#enable-webrtc-pipewire-camera — but note this flag"
+echo "      can break camera access in some Chromium-based browsers."
 echo ""
 echo "  Non-PipeWire apps (Zoom, OBS, VLC) use the on-demand camera relay."
 echo "  The relay is enabled and will auto-start on login (near-zero idle CPU)."

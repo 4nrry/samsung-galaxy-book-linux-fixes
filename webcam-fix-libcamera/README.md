@@ -1,6 +1,6 @@
 # Fix: Samsung Galaxy Book3/Book4 Webcam (Intel IPU6 / OV02C10 / libcamera)
 
-> **Recommended webcam fix for Galaxy Book3 and Book4.** Uses the open-source libcamera stack with PipeWire. Supports **Ubuntu, Fedora, and Arch-based distros**. Includes an on-demand camera relay for apps that don't support PipeWire (Zoom, OBS, VLC) with near-zero idle CPU usage, and auto-enables PipeWire camera flags in Chromium browsers. The installer auto-detects your distro.
+> **Recommended webcam fix for Galaxy Book3 and Book4.** Uses the open-source libcamera stack with PipeWire. Supports **Ubuntu, Fedora, and Arch-based distros**. Includes an on-demand camera relay for apps that don't support PipeWire (Zoom, OBS, VLC) with near-zero idle CPU usage. The installer auto-detects your distro.
 
 > **Galaxy Book5 (Lunar Lake / IPU7):** Use [webcam-fix-book5](../webcam-fix-book5/) instead — the installer will detect Lunar Lake and direct you there.
 
@@ -93,8 +93,7 @@ The install script performs these steps:
 8. **Installs sensor tuning file** (`ov02c10.yaml` with color correction matrix)
 9. **Hides raw IPU6 V4L2 nodes** (udev rules + WirePlumber rules to prevent ~48 unusable "ipu6" entries in app camera lists)
 10. **Installs camera relay** (v4l2loopback, GStreamer plugin, on-demand monitor, CLI tool, systray GUI)
-11. **Enables PipeWire camera flag** in Chromium-based browsers (Brave, Chrome, Chromium)
-12. **Restarts PipeWire** and verifies the camera is detected
+11. **Restarts PipeWire** and verifies the camera is detected
 
 ---
 
@@ -123,9 +122,15 @@ This includes Samsung Galaxy Book3, Book4 Ultra, Book4 Pro, Book4 Pro 360, and p
 
 ## Known App Issues
 
-### Cheese -- Crashes (broken, do not use)
+### Cheese -- Crashes (standalone fix available)
 
 GNOME Cheese crashes with a segfault (`SIGSEGV` in `libgstvideoconvertscale.so`) when receiving frames from the v4l2loopback device. This is a Cheese/Clutter bug, not a camera issue.
+
+A standalone fix is available:
+```bash
+cd camera-relay && ./cheese-fix.sh       # Install
+cd camera-relay && ./cheese-fix-uninstall.sh  # Uninstall
+```
 
 ### GNOME Camera (snapshot) -- May crash on some systems
 
@@ -133,7 +138,26 @@ GNOME Camera may crash with `SIGSEGV` in `gst_video_frame_copy_plane`. **Workaro
 
 ### What works
 
-The webcam works correctly with: **Firefox**, **Chromium/Brave/Chrome** (with PipeWire camera flag), **Zoom**, **Microsoft Teams**, **OBS Studio**, **mpv**, **VLC**, and most other apps.
+The webcam works correctly with: **Firefox**, **Chrome/Chromium/Brave**, **Zoom**, **Microsoft Teams**, **OBS Studio**, **mpv**, **VLC**, and most other apps.
+
+### Browser & App Compatibility
+
+With `exclusive_caps=0` (the default), browsers work best using V4L2 directly through the camera relay, without PipeWire camera flags:
+
+| App | Status | Notes |
+|-----|--------|-------|
+| **Firefox** | Working | Works via PipeWire (no flags needed) |
+| **Chrome** | Working | Works via V4L2 camera relay. PipeWire flag optional but can cause issues. |
+| **Chromium** | Working | Same as Chrome |
+| **Brave** | Working | Same as Chrome |
+| **Edge** | Working | Works via V4L2 camera relay only. No PipeWire support. |
+| **Zoom** | Working | Uses V4L2 camera relay |
+| **OBS Studio** | Working | Uses V4L2 camera relay |
+| **VLC** | Working | Uses V4L2 camera relay |
+| **Cheese** | Crashes | Use standalone fix: `cd ../camera-relay && ./cheese-fix.sh` |
+| **GNOME Camera** | May crash | Workaround: `LIBGL_ALWAYS_SOFTWARE=1 snapshot` |
+
+**Note:** The PipeWire camera flag (`chrome://flags/#enable-webrtc-pipewire-camera`) is **not recommended** — community testing found it can prevent Chromium browsers from seeing the camera, and Edge doesn't support it at all. Browsers work reliably through the V4L2 camera relay without this flag.
 
 Quick test:
 ```bash
@@ -228,12 +252,13 @@ camera-relay enable-persistent
 
 ### Chromium browser doesn't show camera
 
-The installer auto-enables the PipeWire camera flag. If you installed a Chromium browser after running the installer, enable the flag manually:
-- **Brave:** `brave://flags/#enable-webrtc-pipewire-camera` -> Enabled
-- **Chrome:** `chrome://flags/#enable-webrtc-pipewire-camera` -> Enabled
-- **Chromium:** `chrome://flags/#enable-webrtc-pipewire-camera` -> Enabled
+Chrome/Chromium/Brave/Edge should see the camera through the V4L2 camera relay without any special flags. Make sure the relay is running:
+```bash
+camera-relay status
+camera-relay enable-persistent --yes  # if not enabled
+```
 
-Firefox works without any flags.
+If the camera still doesn't appear, you can try enabling `chrome://flags/#enable-webrtc-pipewire-camera` — but note this flag can break camera access in some browsers (especially Edge). Disable it if it causes problems.
 
 ### Desaturated / green-tinted image
 

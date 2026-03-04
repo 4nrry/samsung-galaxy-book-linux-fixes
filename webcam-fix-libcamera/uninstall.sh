@@ -15,8 +15,8 @@ if [[ $EUID -eq 0 ]]; then
     exit 1
 fi
 
-# [1/9] Stop and remove camera relay
-echo "[1/9] Removing camera relay..."
+# [1/8] Stop and remove camera relay
+echo "[1/8] Removing camera relay..."
 # Disable persistent mode (stops user service, removes unit file)
 if command -v camera-relay >/dev/null 2>&1; then
     camera-relay disable-persistent 2>/dev/null || true
@@ -48,26 +48,14 @@ if command -v dracut &>/dev/null; then
 fi
 echo "  ✓ Camera relay removed"
 
-# [2/9] Remove Cheese CameraBin fix
-echo "[2/9] Removing Cheese CameraBin fix..."
-sudo rm -f /usr/local/lib/cheese-camerabin-fix.so
-sudo rm -f /usr/local/bin/cheese
-# Remove any .desktop override we installed
-for f in /usr/local/share/applications/*heese*.desktop /usr/local/share/applications/*cheese*.desktop; do
-    if [[ -f "$f" ]]; then
-        sudo rm -f "$f"
-    fi
-done
-echo "  ✓ Cheese fix removed"
-
-# [3/9] Remove module configuration
-echo "[3/9] Removing module configuration..."
+# [2/8] Remove module configuration
+echo "[2/8] Removing module configuration..."
 sudo rm -f /etc/modules-load.d/ivsc.conf
 sudo rm -f /etc/modprobe.d/ivsc-camera.conf
 echo "  ✓ Module configuration removed"
 
-# [4/9] Remove initramfs configuration
-echo "[4/9] Removing initramfs configuration..."
+# [3/8] Remove initramfs configuration
+echo "[3/8] Removing initramfs configuration..."
 INITRAMFS_CHANGED=false
 if [[ -f /etc/initramfs-tools/modules ]]; then
     for mod in mei-vsc mei-vsc-hw ivsc-ace ivsc-csi; do
@@ -89,14 +77,14 @@ else
     echo "  ✓ Initramfs configuration removed"
 fi
 
-# [5/9] Remove udev rules
-echo "[5/9] Removing udev rules..."
+# [4/8] Remove udev rules
+echo "[4/8] Removing udev rules..."
 sudo rm -f /etc/udev/rules.d/90-hide-ipu6-v4l2.rules
 sudo udevadm control --reload-rules 2>/dev/null || true
 echo "  ✓ Udev rules removed"
 
-# [6/9] Remove WirePlumber rules
-echo "[6/9] Removing WirePlumber rules..."
+# [5/8] Remove WirePlumber rules
+echo "[5/8] Removing WirePlumber rules..."
 sudo rm -f /etc/wireplumber/main.lua.d/51-disable-ipu6-v4l2.lua
 sudo rm -f /etc/wireplumber/wireplumber.conf.d/50-disable-ipu6-v4l2.conf
 # Restore backed-up SPA plugin if present
@@ -107,8 +95,8 @@ if [[ -n "$SPA_BAK" ]]; then
 fi
 echo "  ✓ WirePlumber rules removed"
 
-# [7/9] Remove sensor tuning files
-echo "[7/9] Removing sensor tuning files..."
+# [6/8] Remove sensor tuning files
+echo "[6/8] Removing sensor tuning files..."
 for dir in /usr/local/share/libcamera/ipa/simple /usr/share/libcamera/ipa/simple; do
     if [[ -f "$dir/ov02c10.yaml" ]]; then
         sudo rm -f "$dir/ov02c10.yaml"
@@ -117,14 +105,14 @@ for dir in /usr/local/share/libcamera/ipa/simple /usr/share/libcamera/ipa/simple
 done
 echo "  ✓ Sensor tuning files removed"
 
-# [8/9] Remove environment configs
-echo "[8/9] Removing environment configuration..."
+# [7/8] Remove environment configs
+echo "[7/8] Removing environment configuration..."
 sudo rm -f /etc/profile.d/libcamera-ipa.sh
 sudo rm -f /etc/environment.d/libcamera-ipa.conf
 echo "  ✓ Environment configuration removed"
 
-# [9/9] Restart PipeWire
-echo "[9/9] Restarting PipeWire..."
+# [8/8] Restart PipeWire
+echo "[8/8] Restarting PipeWire..."
 systemctl --user restart pipewire wireplumber 2>/dev/null || true
 echo "  ✓ PipeWire restarted"
 

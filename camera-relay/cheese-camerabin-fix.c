@@ -53,8 +53,8 @@ static const char *find_loopback_device(void) {
     static char dev_path[32] = "";
     if (dev_path[0]) return dev_path;
 
-    /* Check /dev/video0 through /dev/video9 for "Camera Relay" */
-    for (int i = 0; i < 10; i++) {
+    /* Check /dev/video0 through /dev/video63 for "Camera Relay" */
+    for (int i = 0; i < 64; i++) {
         char name_path[64], name_buf[64];
         snprintf(name_path, sizeof(name_path),
                  "/sys/devices/virtual/video4linux/video%d/name", i);

@@ -157,6 +157,18 @@ libcamera on IPU7 currently supports only one client at a time. If Firefox is us
 
 **Note:** Multiple V4L2 apps can share the camera relay's `/dev/videoX` device simultaneously, but only one libcamera client can access the sensor at a time. If the relay is running and a PipeWire app tries to access the camera directly, it will fail (or vice versa).
 
+### Browser & App Compatibility
+
+With `exclusive_caps=0` (the default), browsers work best using V4L2 directly through the camera relay:
+
+| App | Status | Notes |
+|-----|--------|-------|
+| **Firefox** | Working | Works via PipeWire (no flags needed) |
+| **Chrome / Chromium / Brave** | Working | Works via V4L2 camera relay |
+| **Edge** | Working | Works via V4L2 camera relay only |
+| **Zoom / OBS / VLC** | Working | Uses V4L2 camera relay |
+| **Cheese** | Crashes | Use standalone fix: `cd ../camera-relay && ./cheese-fix.sh` |
+
 ### Browsers / apps don't see the camera (Ubuntu source builds)
 
 On Ubuntu, if you built PipeWire and libcamera from source (installed to `/usr/local`), PipeWire may not find the libcamera SPA plugin. The installer auto-detects this and sets `SPA_PLUGIN_DIR` in `/etc/environment.d/libcamera-ipa.conf`. **A reboot is required** for PipeWire's systemd user service to pick up the new environment variable.
@@ -182,18 +194,18 @@ media.navigator.video.default_width = 1920
 media.navigator.video.default_height = 1080
 ```
 
-**Chrome / Chromium:** Navigate to `chrome://flags` and enable:
+**Chrome / Chromium / Edge:** These browsers work via the V4L2 camera relay without any special flags. Make sure the relay is running:
+```bash
+camera-relay status
+camera-relay enable-persistent --yes  # if not enabled
 ```
-#enable-webrtc-pipewire-camera
-```
-Then relaunch the browser. If Chrome still shows "waiting for your permission" without a prompt, try:
+
+If Chrome still shows "waiting for your permission" without a prompt, try:
 1. Go to `chrome://settings/content/camera` and ensure the correct camera is selected
 2. Clear site permissions for the page you're testing
 3. Try an Incognito window (to rule out extension conflicts)
 
-**Edge:** As of February 2026, Microsoft Edge does not expose a PipeWire camera flag in `edge://flags`. Camera access through PipeWire is not yet supported in Edge on Linux.
-
-**Note:** These flags may become enabled by default in future browser versions.
+**Note:** The PipeWire camera flag (`chrome://flags/#enable-webrtc-pipewire-camera`) is **not recommended** — community testing found it can prevent Chromium browsers from seeing the camera, and Edge doesn't support it at all. Only try it as a last resort, and disable it if it causes problems.
 
 ### VLC / Zoom / OBS don't see the camera
 

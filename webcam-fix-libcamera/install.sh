@@ -39,7 +39,7 @@ echo "=============================================="
 echo ""
 
 # ──────────────────────────────────────────────
-# [1/15] Root check
+# [1/13] Root check
 # ──────────────────────────────────────────────
 if [[ $EUID -eq 0 ]]; then
     echo "ERROR: Don't run this as root. The script will use sudo where needed."
@@ -47,9 +47,9 @@ if [[ $EUID -eq 0 ]]; then
 fi
 
 # ──────────────────────────────────────────────
-# [2/15] Distro detection
+# [2/13] Distro detection
 # ──────────────────────────────────────────────
-echo "[2/15] Detecting distro..."
+echo "[2/13] Detecting distro..."
 if command -v pacman >/dev/null 2>&1; then
     DISTRO="arch"
     DISTRO_LABEL="Arch-based"
@@ -74,10 +74,10 @@ fi
 echo "  ✓ $DISTRO_LABEL detected"
 
 # ──────────────────────────────────────────────
-# [3/15] Verify hardware
+# [3/13] Verify hardware
 # ──────────────────────────────────────────────
 echo ""
-echo "[3/15] Verifying hardware..."
+echo "[3/13] Verifying hardware..."
 
 IPU_GENERATION=""
 if lspci -d 8086:7d19 2>/dev/null | grep -q .; then
@@ -131,10 +131,10 @@ fi
 echo "  ✓ IVSC firmware present"
 
 # ──────────────────────────────────────────────
-# [4/15] Check kernel version
+# [4/13] Check kernel version
 # ──────────────────────────────────────────────
 echo ""
-echo "[4/15] Checking kernel version..."
+echo "[4/13] Checking kernel version..."
 KERNEL_VER=$(uname -r)
 KERNEL_MAJOR=$(echo "$KERNEL_VER" | cut -d. -f1)
 KERNEL_MINOR=$(echo "$KERNEL_VER" | cut -d. -f2)
@@ -159,10 +159,10 @@ fi
 echo "  ✓ Kernel $KERNEL_VER (>= 6.10 required)"
 
 # ──────────────────────────────────────────────
-# [5/15] Check kernel modules
+# [5/13] Check kernel modules
 # ──────────────────────────────────────────────
 echo ""
-echo "[5/15] Checking kernel modules..."
+echo "[5/13] Checking kernel modules..."
 MISSING_MODS=()
 for mod in mei-vsc mei-vsc-hw ivsc-ace ivsc-csi intel-ipu6 intel-ipu6-isys ov02c10; do
     modpath=$(find /lib/modules/$(uname -r) -name "${mod//-/_}.ko*" -o -name "${mod}.ko*" 2>/dev/null | head -1)
@@ -193,10 +193,10 @@ fi
 echo "  ✓ All required kernel modules found"
 
 # ──────────────────────────────────────────────
-# [6/15] Check OV02C10 sensor probe (26 MHz clock fix)
+# [6/13] Check OV02C10 sensor probe (26 MHz clock fix)
 # ──────────────────────────────────────────────
 echo ""
-echo "[6/15] Checking OV02C10 sensor probe status..."
+echo "[6/13] Checking OV02C10 sensor probe status..."
 
 # Some Galaxy Book models (notably Book3/Book4 Ultra with Raptor Lake) have a
 # 26 MHz external clock instead of the expected 19.2 MHz. The upstream ov02c10
@@ -280,10 +280,10 @@ if ! $DKMS_26MHZ_INSTALLED; then
 fi
 
 # ──────────────────────────────────────────────
-# [7/15] Load and persist IVSC modules
+# [7/13] Load and persist IVSC modules
 # ──────────────────────────────────────────────
 echo ""
-echo "[7/15] Loading IVSC kernel modules..."
+echo "[7/13] Loading IVSC kernel modules..."
 for mod in mei-vsc mei-vsc-hw ivsc-ace ivsc-csi; do
     if ! lsmod | grep -q "$(echo $mod | tr '-' '_')"; then
         sudo modprobe "$mod"
@@ -368,10 +368,10 @@ MKINIT_EOF
 esac
 
 # ──────────────────────────────────────────────
-# [8/15] Install/build libcamera
+# [8/13] Install/build libcamera
 # ──────────────────────────────────────────────
 echo ""
-echo "[8/15] Installing libcamera..."
+echo "[8/13] Installing libcamera..."
 
 # Check if a sufficient version is already installed
 check_libcamera_version() {
@@ -532,10 +532,10 @@ case "$DISTRO" in
 esac
 
 # ──────────────────────────────────────────────
-# [9/15] Install PipeWire libcamera plugin
+# [9/13] Install PipeWire libcamera plugin
 # ──────────────────────────────────────────────
 echo ""
-echo "[9/15] Installing PipeWire libcamera plugin..."
+echo "[9/13] Installing PipeWire libcamera plugin..."
 
 # On Ubuntu/Debian with source-built libcamera, the system PipeWire SPA plugin
 # links against the old system libcamera (0.2.x). We need to rebuild the SPA
@@ -638,10 +638,10 @@ case "$DISTRO" in
 esac
 
 # ──────────────────────────────────────────────
-# [10/15] Install sensor tuning and configure environment
+# [10/13] Install sensor tuning and configure environment
 # ──────────────────────────────────────────────
 echo ""
-echo "[10/15] Installing sensor tuning and environment config..."
+echo "[10/13] Installing sensor tuning and environment config..."
 
 # Install OV02C10 tuning file for libcamera Simple ISP
 for dir in /usr/local/share/libcamera/ipa/simple /usr/share/libcamera/ipa/simple; do
@@ -675,10 +675,10 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [11/15] Hide raw IPU6 nodes from PipeWire
+# [11/13] Hide raw IPU6 nodes from PipeWire
 # ──────────────────────────────────────────────
 echo ""
-echo "[11/15] Hiding raw IPU6 nodes from applications..."
+echo "[11/13] Hiding raw IPU6 nodes from applications..."
 
 # Remove session-level ACL from raw V4L2 nodes (keeps file permissions intact
 # so libcamera can still access them via the video group)
@@ -743,10 +743,10 @@ fi
 echo "  ✓ Raw IPU6 nodes hidden from applications"
 
 # ──────────────────────────────────────────────
-# [12/15] Camera relay tool (for non-PipeWire apps)
+# [12/13] Camera relay tool (for non-PipeWire apps)
 # ──────────────────────────────────────────────
 echo ""
-echo "[12/15] Installing camera relay tool..."
+echo "[12/13] Installing camera relay tool..."
 
 # Some apps (Zoom, OBS, VLC) don't support PipeWire/libcamera directly and
 # need a standard V4L2 device. The camera-relay tool creates an on-demand
@@ -868,150 +868,10 @@ else
 fi
 
 # ──────────────────────────────────────────────
-# [13/15] Enable PipeWire camera in Chromium browsers
+# [13/13] Restart PipeWire and verify
 # ──────────────────────────────────────────────
 echo ""
-echo "[13/15] Configuring Chromium-based browsers for PipeWire camera..."
-
-# Chromium/Brave/Chrome use direct V4L2 by default and may not show the
-# v4l2loopback device. Enabling the PipeWire camera flag makes them use
-# the camera portal, which correctly sees all PipeWire camera sources.
-# The flag is: enable-webrtc-pipewire-camera (stored in "Local State" JSON).
-
-enable_pipewire_camera_flag() {
-    local browser_name="$1"
-    local state_file="$2"
-
-    if [[ ! -f "$state_file" ]]; then
-        return 1  # browser never launched
-    fi
-
-    # Check if browser is running (by checking lock files next to Local State)
-    local profile_dir
-    profile_dir=$(dirname "$state_file")
-    if [[ -f "$profile_dir/SingletonLock" ]]; then
-        echo "  ⚠ $browser_name is running — close it first to enable the flag"
-        echo "    Then run: camera-relay enable-browser-flags"
-        return 1
-    fi
-
-    python3 -c "
-import json, sys
-state_file = sys.argv[1]
-flag = 'enable-webrtc-pipewire-camera'
-with open(state_file, 'r') as f:
-    data = json.load(f)
-browser = data.setdefault('browser', {})
-labs = browser.setdefault('enabled_labs_experiments', [])
-# Check if already enabled
-if flag + '@1' in labs:
-    sys.exit(2)  # already set
-# Remove any existing value for this flag
-labs = [e for e in labs if not e.startswith(flag + '@')]
-labs.append(flag + '@1')
-browser['enabled_labs_experiments'] = labs
-with open(state_file, 'w') as f:
-    json.dump(data, f)
-" "$state_file" 2>/dev/null
-    return $?
-}
-
-BROWSER_FLAGS_SET=false
-declare -A BROWSERS=(
-    ["Brave"]="$HOME/.config/BraveSoftware/Brave-Browser/Local State"
-    ["Chrome"]="$HOME/.config/google-chrome/Local State"
-    ["Chromium"]="$HOME/.config/chromium/Local State"
-)
-
-for browser_name in "${!BROWSERS[@]}"; do
-    state_file="${BROWSERS[$browser_name]}"
-    if [[ -f "$state_file" ]]; then
-        ret=0
-        enable_pipewire_camera_flag "$browser_name" "$state_file" || ret=$?
-        if [[ $ret -eq 0 ]]; then
-            echo "  ✓ Enabled PipeWire camera flag for $browser_name"
-            BROWSER_FLAGS_SET=true
-        elif [[ $ret -eq 2 ]]; then
-            echo "  ✓ $browser_name already has PipeWire camera flag enabled"
-        fi
-    fi
-done
-
-if ! $BROWSER_FLAGS_SET; then
-    echo "  No Chromium-based browsers found (or already configured)"
-    echo "  Firefox works without any flags"
-fi
-
-# ──────────────────────────────────────────────
-# [14/15] Cheese CameraBin crash fix
-# ──────────────────────────────────────────────
-echo ""
-echo "[14/15] Checking for Cheese (GNOME webcam app)..."
-
-if command -v cheese >/dev/null 2>&1; then
-    CHEESE_FIX_SRC="$SCRIPT_DIR/../camera-relay/cheese-camerabin-fix.c"
-    if [[ -f "$CHEESE_FIX_SRC" ]]; then
-        echo "  Cheese is installed — installing CameraBin crash fix..."
-
-        # Build the LD_PRELOAD shared library
-        if gcc -shared -fPIC -o /tmp/cheese-camerabin-fix.so "$CHEESE_FIX_SRC" -ldl; then
-            sudo cp /tmp/cheese-camerabin-fix.so /usr/local/lib/cheese-camerabin-fix.so
-            sudo chmod 644 /usr/local/lib/cheese-camerabin-fix.so
-            rm -f /tmp/cheese-camerabin-fix.so
-            echo "  ✓ Installed /usr/local/lib/cheese-camerabin-fix.so"
-        else
-            echo "  ⚠ Failed to compile cheese-camerabin-fix.so (gcc required)"
-        fi
-
-        # Install wrapper script
-        if [[ -f /usr/local/lib/cheese-camerabin-fix.so ]]; then
-            sudo tee /usr/local/bin/cheese > /dev/null << 'CHEESE_WRAPPER'
-#!/bin/sh
-# Pre-start camera relay so v4l2loopback has frames, then launch Cheese
-# with LD_PRELOAD fix (swaps pipewiresrc→v4l2src + videoconvert buffer fix)
-camera-relay start 2>/dev/null &
-sleep 3
-LD_PRELOAD=/usr/local/lib/cheese-camerabin-fix.so /usr/bin/cheese "$@"
-CHEESE_WRAPPER
-            sudo chmod 755 /usr/local/bin/cheese
-            echo "  ✓ Installed /usr/local/bin/cheese (wrapper)"
-
-            # Install .desktop override so GNOME launcher uses the wrapper
-            CHEESE_DESKTOP=$(find /usr/share/applications -name "*heese*.desktop" -o -name "*cheese*.desktop" 2>/dev/null | head -1)
-            if [[ -n "$CHEESE_DESKTOP" ]]; then
-                sudo mkdir -p /usr/local/share/applications
-                sed -e 's|^Exec=.*|Exec=/usr/local/bin/cheese|' \
-                    -e 's|^DBusActivatable=true|DBusActivatable=false|' "$CHEESE_DESKTOP" | \
-                    sudo tee /usr/local/share/applications/$(basename "$CHEESE_DESKTOP") > /dev/null
-                echo "  ✓ Installed .desktop override (/usr/local/share/applications/$(basename "$CHEESE_DESKTOP"))"
-            else
-                sudo mkdir -p /usr/local/share/applications
-                sudo tee /usr/local/share/applications/org.gnome.Cheese.desktop > /dev/null << 'CHEESE_DESKTOP_EOF'
-[Desktop Entry]
-Name=Cheese
-Comment=Take photos and videos with your webcam, with fun graphical effects
-Exec=/usr/local/bin/cheese
-Icon=org.gnome.Cheese
-Terminal=false
-Type=Application
-Categories=GNOME;AudioVideo;Video;
-StartupNotify=true
-CHEESE_DESKTOP_EOF
-                echo "  ✓ Installed .desktop file (/usr/local/share/applications/org.gnome.Cheese.desktop)"
-            fi
-        fi
-    else
-        echo "  ⚠ cheese-camerabin-fix.c not found — skipping Cheese fix"
-    fi
-else
-    echo "  Cheese not installed — skipping (fix will be available if Cheese is installed later)"
-fi
-
-# ──────────────────────────────────────────────
-# [15/15] Restart PipeWire and verify
-# ──────────────────────────────────────────────
-echo ""
-echo "[15/15] Restarting PipeWire and verifying camera..."
+echo "[13/13] Restarting PipeWire and verifying camera..."
 
 # Restart PipeWire so it picks up the libcamera SPA plugin
 systemctl --user restart pipewire wireplumber 2>/dev/null || true
@@ -1104,12 +964,15 @@ if [[ -f /usr/local/bin/camera-relay ]]; then
     echo "    /usr/local/bin/camera-relay-monitor"
     echo "    /etc/modprobe.d/99-camera-relay-loopback.conf"
 fi
-if [[ -f /usr/local/lib/cheese-camerabin-fix.so ]]; then
-    echo "    /usr/local/lib/cheese-camerabin-fix.so"
-    echo "    /usr/local/bin/cheese (wrapper)"
-    CHEESE_DESKTOP_INSTALLED=$(find /usr/local/share/applications -name "*cheese*" -o -name "*Cheese*" 2>/dev/null | head -1)
-    if [[ -n "$CHEESE_DESKTOP_INSTALLED" ]]; then
-        echo "    $CHEESE_DESKTOP_INSTALLED"
-    fi
-fi
+echo ""
+echo "  Browser setup:"
+echo "    Firefox:  Works out of the box (no flags needed)"
+echo "    Chrome:   Works out of the box with the V4L2 camera relay"
+echo "    Troubleshooting: If your browser doesn't see the camera, try enabling"
+echo "      chrome://flags/#enable-webrtc-pipewire-camera — but note this flag"
+echo "      can break camera access in some Chromium-based browsers."
+echo ""
+echo "  Cheese fix (if needed):"
+echo "    Cheese crashes with this camera. A standalone fix is available:"
+echo "    cd ../camera-relay && ./cheese-fix.sh"
 echo "=============================================="
