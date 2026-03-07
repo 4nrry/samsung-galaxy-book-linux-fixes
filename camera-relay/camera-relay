@@ -64,7 +64,8 @@ detect_camera_name() {
     # Extract the camera ID from parentheses — this is what gst-launch needs
     # for the camera-name property (not the display name in quotes).
     local cam_cmd=""
-    if [[ -x /usr/local/bin/cam ]]; then
+    # Prefer /usr/local/bin/cam only if it actually runs (not broken by stale libs)
+    if [[ -x /usr/local/bin/cam ]] && /usr/local/bin/cam -l &>/dev/null; then
         cam_cmd="/usr/local/bin/cam"
     elif command -v cam &>/dev/null; then
         cam_cmd="cam"

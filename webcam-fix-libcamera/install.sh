@@ -484,22 +484,60 @@ cleanup_stale_local_libcamera() {
                    /usr/local/lib64/libcamera.so.0.* \
                    /usr/local/lib/libcamera.so.0.* 2>/dev/null \
               | grep -oP 'libcamera\.so\.0\.\K[0-9]+' | sort -n | tail -1)
-    if [[ -z "$stale_ver" ]]; then
-        return
-    fi
     local min_minor
     min_minor=$(echo "$LIBCAMERA_MIN_VER" | cut -d. -f2)
+
+    # Also check for orphaned binaries from a previous partial cleanup
+    # (e.g. .so files already removed but /usr/local/bin/cam still exists)
+    if [[ -z "$stale_ver" ]]; then
+        for bin in cam qcam lc-compliance; do
+            if [[ -x "/usr/local/bin/$bin" ]] && \
+               ! "/usr/local/bin/$bin" --version &>/dev/null 2>&1; then
+                sudo rm -f "/usr/local/bin/$bin"
+                echo "  Removed orphaned /usr/local/bin/$bin (missing libraries)"
+            fi
+        done
+        return
+    fi
+
     if [[ "$stale_ver" -lt "$min_minor" ]]; then
         echo "  ⚠ Removing stale libcamera build (0.$stale_ver) from /usr/local..."
+        # Remove stale binaries from the old source build. They link against
+        # the libcamera.so.0.X we're about to remove and would fail with
+        # "cannot open shared object file" if left behind.
+        for bin in cam qcam lc-compliance; do
+            if [[ -x "/usr/local/bin/$bin" ]]; then
+                sudo rm -f "/usr/local/bin/$bin"
+                echo "    Removed stale /usr/local/bin/$bin"
+            fi
+        done
         for dir in /usr/local/lib/x86_64-linux-gnu /usr/local/lib/aarch64-linux-gnu \
                    /usr/local/lib64 /usr/local/lib; do
             sudo rm -f "$dir"/libcamera*.so* 2>/dev/null || true
             sudo rm -f "$dir"/gstreamer-1.0/libgstlibcamera.so 2>/dev/null || true
             sudo rm -rf "$dir"/libcamera/ 2>/dev/null || true
+            sudo rm -f "$dir"/pkgconfig/libcamera*.pc 2>/dev/null || true
         done
         sudo rm -rf /usr/local/share/libcamera/ipa/simple 2>/dev/null || true
+        sudo rm -rf /usr/local/include/libcamera 2>/dev/null || true
+        # Remove environment configs that pointed to the now-gone /usr/local paths
+        sudo rm -f /etc/profile.d/libcamera-ipa.sh 2>/dev/null || true
+        sudo rm -f /etc/environment.d/libcamera-ipa.conf 2>/dev/null || true
         sudo ldconfig
         echo "  ✓ Stale /usr/local libcamera removed"
+
+        # Ensure system packages provide cam and the GStreamer plugin now that
+        # the /usr/local copies are gone.
+        case "$DISTRO" in
+            ubuntu|debian)
+                for pkg in libcamera-tools gstreamer1.0-libcamera; do
+                    if ! dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+                        echo "  Installing $pkg (replacing removed /usr/local build)..."
+                        sudo apt-get install -y "$pkg" 2>/dev/null || true
+                    fi
+                done
+                ;;
+        esac
     fi
 }
 
@@ -923,7 +961,8 @@ fi
 
 # Also try a direct libcamera test
 CAM_CMD=""
-if [[ -x /usr/local/bin/cam ]]; then
+# Prefer /usr/local/bin/cam only if it actually runs (not broken by stale libs)
+if [[ -x /usr/local/bin/cam ]] && /usr/local/bin/cam --list &>/dev/null; then
     CAM_CMD="/usr/local/bin/cam"
 elif command -v cam >/dev/null 2>&1; then
     CAM_CMD="cam"
@@ -931,7 +970,7 @@ fi
 
 CAPTURE_OK=false
 if [[ -n "$CAM_CMD" ]]; then
-    CAM_OUTPUT=$(sudo LD_LIBRARY_PATH=/usr/local/lib/x86_64-linux-gnu "$CAM_CMD" --list 2>&1 || true)
+    CAM_OUTPUT=$(sudo "$CAM_CMD" --list 2>&1 || true)
     if echo "$CAM_OUTPUT" | grep -qi "ov02c10"; then
         echo "  ✓ libcamera detects OV02C10 sensor"
         CAPTURE_OK=true
