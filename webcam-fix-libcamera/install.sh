@@ -625,6 +625,23 @@ if check_libcamera_version >/dev/null 2>&1; then
     LIBCAMERA_OK=true
 fi
 
+# Check if a source-built libcamera at /usr/local has the OV02C10 sensor helper.
+# A previous install (before v0.3.6) may have built v0.7.0 without the helper patch.
+# If so, force a rebuild so the sensor helper gets patched in.
+check_sensor_helper() {
+    local lib
+    lib=$(find /usr/local/lib -name "libcamera.so.0.7.*" -not -type l 2>/dev/null | head -1)
+    [[ -n "$lib" ]] && strings "$lib" | grep -q "CameraSensorHelperOv02c10"
+}
+
+if $LIBCAMERA_OK; then
+    local_lib=$(find /usr/local/lib -name "libcamera.so.0.*" -not -type l 2>/dev/null | head -1)
+    if [[ -n "$local_lib" ]] && ! check_sensor_helper 2>/dev/null; then
+        echo "  ⚠ libcamera $LIBCAMERA_VER found but missing OV02C10 sensor helper — rebuild needed"
+        LIBCAMERA_OK=false
+    fi
+fi
+
 # Clean up stale /usr/local libcamera builds that are older than the minimum.
 # This can happen if a user previously built libcamera from source (e.g. an
 # older version or an AI-assisted attempt) and later upgraded the system packages
