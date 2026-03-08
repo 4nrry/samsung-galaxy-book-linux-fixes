@@ -451,6 +451,29 @@ SIGNEOF
             sudo dkms build "ipu-bridge-fix/${IPU_BRIDGE_FIX_VER}"
             sudo dkms install "ipu-bridge-fix/${IPU_BRIDGE_FIX_VER}"
             echo "  ✓ ipu-bridge-fix/${IPU_BRIDGE_FIX_VER} installed via DKMS"
+
+            # Update initramfs so the DKMS module is loaded at next boot
+            # instead of the stock kernel module (which has rotation=0).
+            case "$DISTRO" in
+                ubuntu|debian)
+                    if command -v update-initramfs >/dev/null 2>&1; then
+                        sudo update-initramfs -u -k "$(uname -r)" 2>/dev/null && \
+                            echo "  ✓ initramfs updated" || true
+                    fi
+                    ;;
+                fedora)
+                    if command -v dracut >/dev/null 2>&1; then
+                        sudo dracut --force 2>/dev/null && \
+                            echo "  ✓ initramfs updated" || true
+                    fi
+                    ;;
+                arch)
+                    if command -v mkinitcpio >/dev/null 2>&1; then
+                        sudo mkinitcpio -P 2>/dev/null && \
+                            echo "  ✓ initramfs updated" || true
+                    fi
+                    ;;
+            esac
         fi
     fi
 
