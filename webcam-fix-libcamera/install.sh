@@ -383,7 +383,7 @@ DMI_VENDOR=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)
 DMI_PRODUCT=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
 if [[ "$DMI_VENDOR" == "SAMSUNG ELECTRONICS CO., LTD." ]]; then
     case "$DMI_PRODUCT" in
-        940XFG|960XFG) NEEDS_ROTATION_FIX=true ;;
+        940XFG|960XFG|960XGL) NEEDS_ROTATION_FIX=true ;;
     esac
 fi
 
@@ -551,6 +551,17 @@ build_libcamera_from_source() {
     echo "  Building libcamera $LIBCAMERA_BUILD_VER from source..."
     echo "  (This will take a few minutes)"
     echo ""
+
+    # Ensure the build uses the system Python, not pyenv/conda/virtualenv shims.
+    # System packages (python3-pyyaml, python3-ply, python3-jinja2) are installed
+    # into the system Python's site-packages, but pyenv/conda shims redirect
+    # 'python3' to a user-managed interpreter that won't have them.
+    if [[ -x /usr/bin/python3 ]]; then
+        if [[ -n "$PYENV_ROOT" ]] || [[ -n "$CONDA_PREFIX" ]] || [[ -n "$VIRTUAL_ENV" ]]; then
+            echo "  Note: pyenv/conda/virtualenv detected — using system Python for build"
+        fi
+        export PATH="/usr/bin:$PATH"
+    fi
 
     # Install build dependencies
     case "$DISTRO" in
