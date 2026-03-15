@@ -73,7 +73,7 @@ The internal speakers use 4x Maxim MAX98390 I2C amplifiers that have no kernel d
 
 > **Sound Quality:** Audio will sound thinner and lack bass compared to Windows. This is because Windows uses Samsung's DSP audio processing (Dolby Atmos, bass enhancement, EQ) which Linux doesn't have. See [Sound Quality & EQ](speaker-fix/README.md#sound-quality--eq) for details and a workaround using EasyEffects.
 
-> **Battery Impact:** This workaround keeps the speaker amps always-on, using ~0.3–0.5W extra (~3–5% battery life). This goes away automatically when native kernel support lands.
+> **Battery Impact:** The speaker amps are only powered on during active audio playback — when idle, they draw ~10μA per chip (effectively zero battery impact). The driver uses HDA playback hooks to enable the amps on demand.
 
 > **Secure Boot:** Most laptops have Secure Boot enabled. If you've never installed a DKMS/out-of-tree kernel module before, you'll need to do a **one-time MOK key enrollment** (reboot + blue screen + password) before the modules will load. See the [full walkthrough](speaker-fix/README.md#secure-boot-setup).
 
@@ -160,6 +160,13 @@ The upstream speaker PR (#5616) was also confirmed working on Galaxy Book4 Pro, 
 | Camera ISP | Intel IPU6 Meteor Lake (`8086:7d19`) |
 | Camera Sensor | OmniVision OV02C10 (`OVTI02C1`) |
 | Microphones | Dual array DMIC (digital — status varies by model, see [Microphone Status](#microphone-status)) |
+
+## Community
+
+Thanks to the following users for their contributions and testing:
+
+- **[@jn-simonnet](https://github.com/jn-simonnet)** and **[@david-bartlett](https://github.com/david-bartlett)** — Extensive testing across multiple Galaxy Book models, kernels, and distros that helped identify and resolve numerous issues
+- **[@MatiDegli](https://github.com/MatiDegli)** — Created [speaker-on/off/status helper scripts](https://github.com/Andycodeman/samsung-galaxy-book4-linux-fixes/discussions/4) for manually toggling the speaker fix on and off. Note: the driver already powers down the amps when idle, so this isn't needed for battery savings, but may be useful if you want to explicitly unload the modules. Community-contributed and not officially tested — use at your own discretion.
 
 ## Credits
 
