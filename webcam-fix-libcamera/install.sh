@@ -583,7 +583,8 @@ build_libcamera_from_source() {
                 libgnutls28-dev libudev-dev libyaml-dev libevent-dev \
                 libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev \
                 libdrm-dev libjpeg-dev libtiff-dev \
-                openssl libssl-dev libdw-dev libunwind-dev
+                openssl libssl-dev libdw-dev libunwind-dev \
+                libdbus-1-dev
             ;;
         fedora)
             sudo dnf install -y \
@@ -592,7 +593,8 @@ build_libcamera_from_source() {
                 gnutls-devel libudev-devel libyaml-devel libevent-devel \
                 gstreamer1-devel gstreamer1-plugins-base-devel \
                 libdrm-devel libjpeg-turbo-devel libtiff-devel \
-                openssl openssl-devel elfutils-libelf-devel libunwind-devel
+                openssl openssl-devel elfutils-libelf-devel libunwind-devel \
+                dbus-devel
             ;;
         arch)
             sudo pacman -S --needed --noconfirm \
