@@ -983,7 +983,18 @@ EOF
     sudo mkdir -p /etc/environment.d
     echo "LIBCAMERA_IPA_MODULE_PATH=/usr/local/lib/x86_64-linux-gnu/libcamera" | \
         sudo tee /etc/environment.d/libcamera-ipa.conf > /dev/null
-    echo "  ✓ IPA module path configured"
+    # Set GST_PLUGIN_PATH so gst-launch/gst-inspect find libcamerasrc from any terminal
+    if [[ -d /usr/local/lib/x86_64-linux-gnu/gstreamer-1.0 ]]; then
+        echo "GST_PLUGIN_PATH=/usr/local/lib/x86_64-linux-gnu/gstreamer-1.0" | \
+            sudo tee -a /etc/environment.d/libcamera-ipa.conf > /dev/null
+        cat << 'GSTEOF' | sudo tee /etc/profile.d/libcamera-gst.sh > /dev/null
+# GStreamer plugin path for source-built libcamera
+export GST_PLUGIN_PATH=/usr/local/lib/x86_64-linux-gnu/gstreamer-1.0
+GSTEOF
+        echo "  ✓ IPA module path and GStreamer plugin path configured"
+    else
+        echo "  ✓ IPA module path configured"
+    fi
     export LIBCAMERA_IPA_MODULE_PATH=/usr/local/lib/x86_64-linux-gnu/libcamera
 fi
 
@@ -1298,4 +1309,13 @@ echo ""
 echo "  Cheese fix (if needed):"
 echo "    Cheese crashes with this camera. A standalone fix is available:"
 echo "    cd ../camera-relay && ./cheese-fix.sh"
+echo ""
+echo "  *** IMPORTANT: A full system reboot is required! ***"
+echo ""
+echo "  The installer added your user to the 'kvm' group for /dev/udmabuf"
+echo "  access. This only takes effect after a FULL REBOOT — logging out"
+echo "  and back in is NOT sufficient because PipeWire, WirePlumber, and"
+echo "  the camera relay all need to start fresh with the new group."
+echo ""
+echo "  Please reboot now:  sudo reboot"
 echo "=============================================="
