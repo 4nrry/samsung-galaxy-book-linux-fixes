@@ -74,6 +74,48 @@ if ! ls /sys/bus/acpi/devices/MAX98390:* &>/dev/null && \
     fi
 fi
 
+# Check for SOF firmware (required for Intel audio DSP to function at all)
+SOF_FW_MISSING=false
+if [ "$PKG_MGR" = "dnf" ]; then
+    if ! rpm -q alsa-sof-firmware &>/dev/null; then
+        SOF_FW_MISSING=true
+        SOF_PKG="alsa-sof-firmware"
+    fi
+elif [ "$PKG_MGR" = "pacman" ]; then
+    if ! pacman -Q sof-firmware &>/dev/null 2>&1; then
+        SOF_FW_MISSING=true
+        SOF_PKG="sof-firmware"
+    fi
+elif [ "$PKG_MGR" = "apt" ]; then
+    if ! dpkg -l firmware-sof-signed 2>/dev/null | grep -q "^ii" && \
+       ! dpkg -l firmware-sof 2>/dev/null | grep -q "^ii"; then
+        SOF_FW_MISSING=true
+        SOF_PKG="firmware-sof-signed"
+    fi
+fi
+
+if $SOF_FW_MISSING; then
+    echo ""
+    echo "WARNING: Sound Open Firmware (SOF) is not installed."
+    echo "  Without it, the Intel audio DSP has no firmware to run and"
+    echo "  audio will not work at all — regardless of this speaker fix."
+    echo ""
+    read -rp "  Install $SOF_PKG now? [Y/n] " REPLY
+    REPLY=${REPLY:-Y}
+    if [[ "$REPLY" =~ ^[Yy] ]]; then
+        echo "  Installing $SOF_PKG..."
+        $PKG_INSTALL "$SOF_PKG" || {
+            echo "ERROR: Failed to install $SOF_PKG. Install it manually." >&2
+            exit 1
+        }
+        echo "  ✓ $SOF_PKG installed (reboot needed to load firmware)"
+    else
+        echo "  Skipping — audio may not work without SOF firmware."
+        echo "  Install later with: sudo $PKG_INSTALL $SOF_PKG"
+    fi
+    echo ""
+fi
+
 # Remove old version if present
 if dkms status "${DKMS_NAME}/${DKMS_VER}" 2>/dev/null | grep -q "${DKMS_NAME}"; then
     echo "Removing existing DKMS module..."
