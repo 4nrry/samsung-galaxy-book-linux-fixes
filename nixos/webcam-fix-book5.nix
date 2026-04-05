@@ -2,12 +2,15 @@
 
 let
   kernelPackages = config.boot.kernelPackages;
-  cc = pkgs.llvmPackages.clang-unwrapped;
+  kernel = kernelPackages.kernel;
+  kernelUsesClang = (kernel.stdenv.cc.isClang or false);
+  cc = if kernelUsesClang then pkgs.llvmPackages.clang-unwrapped else pkgs.gcc;
+  clangMakeFlags = lib.optionalString kernelUsesClang "LLVM=1 CC=${cc}/bin/clang LD=${pkgs.llvmPackages.lld}/bin/ld.lld";
 
   visionDriversSrc = pkgs.fetchFromGitHub {
     owner = "intel";
     repo = "vision-drivers";
-    rev = "main";
+    rev = "a8d772f261bc90376944956b7bfd49b325ffa2f2";
     hash = "sha256-zOvCZKGwOGT9kcJiefzx/duHqR0V8PYhNbqsMHkH1r4=";
   };
 
@@ -17,11 +20,12 @@ let
 
     src = visionDriversSrc;
 
-    nativeBuildInputs = [ kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl pkgs.llvmPackages.lld ];
+    nativeBuildInputs = [ kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl ]
+      ++ lib.optionals kernelUsesClang [ pkgs.llvmPackages.lld ];
 
     buildPhase = ''
       make -C ${kernelPackages.kernel.dev}/lib/modules/${kernelPackages.kernel.modDirVersion}/build \
-        M=$PWD modules LLVM=1 CC=${cc}/bin/clang LD=${pkgs.llvmPackages.lld}/bin/ld.lld
+        M=$PWD modules ${clangMakeFlags}
     '';
 
     installPhase = ''
@@ -41,11 +45,12 @@ let
 
     src = ../webcam-fix-book5/ipu-bridge-fix;
 
-    nativeBuildInputs = [ kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl pkgs.llvmPackages.lld ];
+    nativeBuildInputs = [ kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl ]
+      ++ lib.optionals kernelUsesClang [ pkgs.llvmPackages.lld ];
 
     buildPhase = ''
       make -C ${kernelPackages.kernel.dev}/lib/modules/${kernelPackages.kernel.modDirVersion}/build \
-        M=$PWD modules LLVM=1 CC=${cc}/bin/clang LD=${pkgs.llvmPackages.lld}/bin/ld.lld
+        M=$PWD modules ${clangMakeFlags}
     '';
 
     installPhase = ''
