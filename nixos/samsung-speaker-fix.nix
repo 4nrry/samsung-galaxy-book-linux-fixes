@@ -1,10 +1,20 @@
 { pkgs, config, ... }:
 
 let
+  lib = pkgs.lib;
+  cfg = config.hardware.samsungGalaxyBook.speakerFix;
+
   kernelPackages = config.boot.kernelPackages;
 
   # Out-of-tree kernel module for MAX98390 HDA speaker amplifier
-  max98390-hda = kernelPackages.callPackage ./max98390-hda-module.nix { };
+  max98390-hda = kernelPackages.callPackage ./max98390-hda-module.nix {
+    sourceType = cfg.source;
+    localSrc = cfg.localSrc;
+    githubOwner = cfg.githubOwner;
+    githubRepo = cfg.githubRepo;
+    githubRev = cfg.githubRev;
+    githubHash = cfg.githubHash;
+  };
 
   # I2C setup script to create devices for additional amplifiers
   i2cSetupScript = pkgs.writeShellScript "max98390-hda-i2c-setup" ''
@@ -93,30 +103,70 @@ let
   '';
 in
 {
-  # Build and install the out-of-tree kernel modules
-  boot.extraModulePackages = [ max98390-hda ];
+  options.hardware.samsungGalaxyBook.speakerFix = {
+    source = lib.mkOption {
+      type = lib.types.enum [ "github" "local" ];
+      default = "github";
+      description = "Source for building the MAX98390 speaker modules.";
+    };
 
-  # Load the modules at boot
-  boot.kernelModules = [
-    "i2c-dev"
-    "snd-hda-scodec-max98390"
-    "snd-hda-scodec-max98390-i2c"
-  ];
+    localSrc = lib.mkOption {
+      type = lib.types.path;
+      default = ../speaker-fix/src;
+      description = "Local path used when source is set to local.";
+    };
 
-  # i2c-tools needed for amplifier detection
-  environment.systemPackages = [ pkgs.i2c-tools ];
+    githubOwner = lib.mkOption {
+      type = lib.types.str;
+      default = "Andycodeman";
+      description = "GitHub owner used when source is set to github.";
+    };
 
-  # Systemd service to create I2C devices for additional amplifiers
-  systemd.services.max98390-hda-i2c-setup = {
-    description = "Create I2C devices for MAX98390 HDA speaker amplifiers";
-    after = [ "systemd-modules-load.service" ];
-    before = [ "sound.target" ];
-    wantedBy = [ "sound.target" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = "${i2cSetupScript} start";
-      ExecStop = "${i2cSetupScript} stop";
+    githubRepo = lib.mkOption {
+      type = lib.types.str;
+      default = "samsung-galaxy-book-linux-fixes";
+      description = "GitHub repository used when source is set to github.";
+    };
+
+    githubRev = lib.mkOption {
+      type = lib.types.str;
+      default = "v0.3.26";
+      description = "Git revision or tag used when source is set to github.";
+    };
+
+    githubHash = lib.mkOption {
+      type = lib.types.str;
+      default = "sha256-THezjEOxkaVnFY72zQyK2ER5VunOROm+i72JtSFCeMA=";
+      description = "Content hash for the GitHub source tarball.";
+    };
+  };
+
+  config = {
+    # Build and install the out-of-tree kernel modules
+    boot.extraModulePackages = [ max98390-hda ];
+
+    # Load the modules at boot
+    boot.kernelModules = [
+      "i2c-dev"
+      "snd-hda-scodec-max98390"
+      "snd-hda-scodec-max98390-i2c"
+    ];
+
+    # i2c-tools needed for amplifier detection
+    environment.systemPackages = [ pkgs.i2c-tools ];
+
+    # Systemd service to create I2C devices for additional amplifiers
+    systemd.services.max98390-hda-i2c-setup = {
+      description = "Create I2C devices for MAX98390 HDA speaker amplifiers";
+      after = [ "systemd-modules-load.service" ];
+      before = [ "sound.target" ];
+      wantedBy = [ "sound.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = "${i2cSetupScript} start";
+        ExecStop = "${i2cSetupScript} stop";
+      };
     };
   };
 }
