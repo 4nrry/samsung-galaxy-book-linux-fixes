@@ -9,7 +9,10 @@ VISION_DRIVER_VER="1.0.0"
 SRC_DIR="/usr/src/vision-driver-${VISION_DRIVER_VER}"
 # Detect installed ipu-bridge-fix version from DKMS rather than hardcoding —
 # the installed version may differ from the version in the current source tree.
-IPU_BRIDGE_FIX_VER=$(dkms status 2>/dev/null     | grep "^ipu-bridge-fix"     | grep -oP 'ipu-bridge-fix/\K[0-9.]+'     | head -1 || true)
+IPU_BRIDGE_FIX_VER=$(dkms status 2>/dev/null \
+    | grep "^ipu-bridge-fix" \
+    | grep -oP 'ipu-bridge-fix/\K[0-9.]+' \
+    | head -1 || true)
 IPU_BRIDGE_FIX_SRC="/usr/src/ipu-bridge-fix-${IPU_BRIDGE_FIX_VER}"
 
 echo "=============================================="

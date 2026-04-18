@@ -399,7 +399,8 @@ if [[ "$DMI_VENDOR" == "SAMSUNG ELECTRONICS CO., LTD." ]]; then
     esac
 fi
 
-IPU_BRIDGE_FIX_VER=$(grep "^PACKAGE_VERSION=" "$SCRIPT_DIR/ipu-bridge-fix/dkms.conf"     | cut -d= -f2 | tr -d '"')
+IPU_BRIDGE_FIX_VER=$(grep "^PACKAGE_VERSION=" "$SCRIPT_DIR/ipu-bridge-fix/dkms.conf" \
+    | cut -d= -f2 | tr -d '"')
 IPU_BRIDGE_FIX_SRC="/usr/src/ipu-bridge-fix-${IPU_BRIDGE_FIX_VER}"
 
 if $NEEDS_ROTATION_FIX; then
