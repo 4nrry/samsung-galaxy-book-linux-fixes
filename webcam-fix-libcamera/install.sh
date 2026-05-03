@@ -1205,13 +1205,26 @@ if [[ -d "$RELAY_DIR" ]]; then
     sudo chmod 755 /usr/local/bin/camera-relay
     echo "  ✓ Installed /usr/local/bin/camera-relay"
 
-    # Install systray runtime dependency (Python AppIndicator binding)
+    # Install systray runtime dependency (Python AppIndicator binding).
+    # Without this, camera-relay-systray.py falls back to Gtk.StatusIcon,
+    # which is non-functional on GNOME >= 40 / Wayland and the icon never
+    # shows up in the tray.
     case "$DISTRO" in
         ubuntu|debian)
             sudo apt-get install -y --no-install-recommends \
                 gir1.2-ayatanaappindicator3-0.1 2>/dev/null \
                 && echo "  ✓ Installed gir1.2-ayatanaappindicator3-0.1 (systray binding)" \
                 || echo "  ⚠ Could not install gir1.2-ayatanaappindicator3-0.1 — systray icon will not appear"
+            ;;
+        fedora)
+            sudo dnf install -y libayatana-appindicator-gtk3 2>/dev/null \
+                && echo "  ✓ Installed libayatana-appindicator-gtk3 (systray binding)" \
+                || echo "  ⚠ Could not install libayatana-appindicator-gtk3 — systray icon will not appear"
+            ;;
+        arch)
+            sudo pacman -S --needed --noconfirm libayatana-appindicator 2>/dev/null \
+                && echo "  ✓ Installed libayatana-appindicator (systray binding)" \
+                || echo "  ⚠ Could not install libayatana-appindicator — systray icon will not appear"
             ;;
     esac
 

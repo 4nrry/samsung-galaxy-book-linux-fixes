@@ -171,6 +171,9 @@ sudo rm -f /usr/local/bin/camera-relay
 sudo rm -f /usr/local/bin/camera-relay-monitor
 sudo rm -rf /usr/local/share/camera-relay
 sudo rm -f /usr/share/applications/camera-relay-systray.desktop
+sudo rm -f /etc/xdg/autostart/camera-relay-systray.desktop
+# Stop any running systray instance from this install
+pkill -f "camera-relay-systray.py" 2>/dev/null || true
 # Only remove our v4l2loopback config if it's ours
 if [[ -f /etc/modprobe.d/99-camera-relay-loopback.conf ]] && \
    grep -q "Camera Relay" /etc/modprobe.d/99-camera-relay-loopback.conf 2>/dev/null; then
