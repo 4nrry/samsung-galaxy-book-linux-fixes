@@ -382,5 +382,4 @@ in
     LIBCAMERA_FORCE_OV02E10_ROTATION = "180";
   };
   };
-  };
 }
