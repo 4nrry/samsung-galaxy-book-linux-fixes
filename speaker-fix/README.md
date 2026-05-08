@@ -332,6 +332,40 @@ sudo dkms build max98390-hda/1.0
 sudo dkms install max98390-hda/1.0
 ```
 
+**Audio worked, then a Samsung BIOS update broke it? ("Loading of module with unavailable key is rejected")**
+
+A Samsung BIOS update can wipe EFI NVRAM, including your enrolled MOK key. The DKMS modules are still built and signed on disk, but the firmware no longer trusts the signing key, so the kernel rejects them at load time. Confirm with:
+
+```bash
+# Look for the rejection message in dmesg
+sudo dmesg | grep "Loading of module with unavailable key"
+
+# Confirm Secure Boot is on
+mokutil --sb-state
+
+# Check whether your DKMS signing key is enrolled
+# (try each path that exists on your system)
+mokutil --test-key /var/lib/dkms/mok.pub             # Debian
+mokutil --test-key /var/lib/shim-signed/mok/MOK.der  # Ubuntu
+mokutil --test-key /etc/pki/akmods/certs/public_key.der  # Fedora
+```
+
+If `mokutil --test-key` says **"is not enrolled"**, re-enroll the key and reboot:
+
+```bash
+# Use the SAME path that --test-key flagged as not enrolled
+sudo mokutil --import /var/lib/dkms/mok.pub
+sudo reboot
+# On the blue MOK Manager screen, choose "Enroll MOK" → "Continue" → "Yes" → enter password
+```
+
+The `install.sh` script auto-detects this state on Fedora, Debian, and Ubuntu and queues the enrollment for you — re-running it is the lowest-friction recovery path:
+
+```bash
+sudo ./install.sh
+sudo reboot
+```
+
 ## Secure Boot Setup
 
 **If Secure Boot is disabled on your system, skip this section entirely.** Check with:
