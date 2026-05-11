@@ -426,11 +426,11 @@ DMI_VENDOR=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null || true)
 DMI_PRODUCT=$(cat /sys/class/dmi/id/product_name 2>/dev/null || true)
 if [[ "$DMI_VENDOR" == "SAMSUNG ELECTRONICS CO., LTD." ]]; then
     case "$DMI_PRODUCT" in
-        940XFG|940XGK|960XFG|960XGK|960XGL|960QFG|960QGK) NEEDS_ROTATION_FIX=true ;;
+        940XFG|940XGK|960XFG|960XFH|960XGK|960XGL|960QFG|960QGK) NEEDS_ROTATION_FIX=true ;;
     esac
 fi
 
-IPU_BRIDGE_FIX_VER="1.3"
+IPU_BRIDGE_FIX_VER="1.4"
 IPU_BRIDGE_FIX_SRC="/usr/src/ipu-bridge-fix-${IPU_BRIDGE_FIX_VER}"
 
 if $NEEDS_ROTATION_FIX; then
