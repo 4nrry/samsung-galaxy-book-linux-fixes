@@ -175,7 +175,7 @@ ensure_v4l2loopback() {
     # Check if v4l2loopback module is available
     if ! modinfo v4l2loopback &>/dev/null; then
         die "v4l2loopback kernel module not found. Install it first:
-  Fedora:  sudo dnf install v4l2loopback
+  Fedora:  sudo dnf install akmod-v4l2loopback kernel-devel  (requires RPM Fusion (free) — https://rpmfusion.org/Configuration)
   Arch:    sudo pacman -S v4l2loopback-dkms
   Ubuntu:  sudo apt install v4l2loopback-dkms"
     fi
