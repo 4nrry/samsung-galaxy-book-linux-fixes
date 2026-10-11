@@ -276,7 +276,7 @@ detect_libcamera_version() {
     fi
 
     if [[ -z "$LIBCAMERA_VERSION" ]]; then
-        die "Cannot detect installed libcamera version. Is libcamera installed?"
+        die "libcamera is not installed. Run install.sh (it installs libcamera first), or install libcamera from your package manager, then re-run this script."
     fi
 
     # Extract version number (e.g., "0.6.0" from "0.6.0+53-f4f8b487-dirty" or "0.6.0-1.fc43")
@@ -447,7 +447,7 @@ find_libcamera_libs() {
     fi
 
     if [[ -z "$LIBCAMERA_LIB_DIR" ]]; then
-        die "Cannot find libcamera.so — is libcamera installed?"
+        die "Cannot find libcamera.so. Run install.sh (it installs libcamera first), or install libcamera from your package manager, then re-run this script."
     fi
 
     # Find IPA module directory (match the lib directory we found)
@@ -829,7 +829,7 @@ prepare_srpm_source() {
     if [[ ! -f "$SRPM_DIR/$srpm_name" ]]; then
         local koji_url="https://kojipkgs.fedoraproject.org/packages/libcamera/$pkg_ver/$pkg_rel/src/$srpm_name"
         info "Trying Fedora Koji: $koji_url"
-        curl -fL --retry 3 -o "$SRPM_DIR/$srpm_name" "$koji_url" 2>&1 \
+        curl -fsSL --connect-timeout 20 --retry 3 -o "$SRPM_DIR/$srpm_name" "$koji_url" 2>&1 \
             || { rm -f "$SRPM_DIR/$srpm_name"; warn "Koji download failed."; }
     fi
 
@@ -837,7 +837,7 @@ prepare_srpm_source() {
     # a different version that happened to be downloaded.
     local srpm_file="$SRPM_DIR/$srpm_name"
     if [[ ! -f "$srpm_file" ]]; then
-        error "Could not download the libcamera source RPM ($srpm_name)."
+        error "Could not download the libcamera source RPM ($srpm_name). Check your network."
         return 1
     fi
     ok "Downloaded: $(basename "$srpm_file")"
@@ -881,7 +881,10 @@ prepare_srpm_source() {
     fi
 
     info "Found source at: $prepped_src"
-    mv "$prepped_src" "$BUILD_DIR/libcamera"
+    if ! mv "$prepped_src" "$BUILD_DIR/libcamera"; then
+        error "Could not move the prepared source to $BUILD_DIR/libcamera."
+        return 1
+    fi
     return 0
 }
 
@@ -889,7 +892,7 @@ if [[ "$DISTRO" == "fedora" ]]; then
     info "Fedora detected — using the source RPM for the installed libcamera..."
     if ! prepare_srpm_source; then
         rm -rf "$BUILD_DIR"
-        die "Could not prepare the Fedora libcamera source RPM. Nothing was changed: the stock libcamera is still installed. Check your network and re-run install.sh."
+        die "Could not prepare the Fedora libcamera source RPM (see the error above). Nothing was changed."
     fi
     USE_SRPM=true
     ok "Source prepared with Fedora patches."
@@ -1092,6 +1095,9 @@ echo ""
 
 # Step 8: Install
 cd "$BUILD_DIR/libcamera"
+# Marker for step 9: installs keep the build's modification times, so check
+# change times (which a copy can't keep) against this instead.
+touch "$BUILD_DIR/.install-start"
 
 # Install strategy (USE_FULL_INSTALL) was decided before step 4c.
 [[ -n "$INSTALL_MODE_MSG" ]] && info "$INSTALL_MODE_MSG"
@@ -1174,9 +1180,11 @@ echo ""
 
 # Step 9: Verify installation
 info "Verifying installation..."
-INSTALLED_LIB=$(find "$LIBCAMERA_LIB_DIR" -name 'libcamera.so.*' -newer "$BACKUP_DIR" -print -quit 2>/dev/null || true)
+# -H: the library folder can be a symlink (/lib64 on Fedora). -type f: the
+# library itself, not one of its symlinks.
+INSTALLED_LIB=$(find -H "$LIBCAMERA_LIB_DIR" -name 'libcamera.so.*' -type f -cnewer "$BUILD_DIR/.install-start" -print -quit 2>/dev/null || true)
 if [[ -n "$INSTALLED_LIB" ]]; then
-    ok "Verified: $INSTALLED_LIB is newer than backup."
+    ok "Verified: $INSTALLED_LIB was installed by this run."
 else
     warn "Could not verify installation timestamp. Library may need ldconfig."
 fi
