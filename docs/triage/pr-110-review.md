@@ -1,6 +1,6 @@
 # PR #110 review — "build-patched-libcamera: review follow-ups from #109"
 
-VERDICT: READY TO MERGE — approved (not merged in this pass)
+VERDICT: READY TO MERGE — approved, merged and released as v0.3.78
 
 Reviewed: 2026-10-11. Author: **@david-bartlett** (David Bartlett, also #107 and
 #109). Head `5905fcc` (1 commit), base `main` at `f857aab` (current tip, so no
@@ -123,4 +123,25 @@ theoretical; `-maxdepth 1` would make "installed by this run" exact.
 - The head was fetched into `refs/remotes/pr/110` (never checked out over
   `main`), deleted afterwards. The scratch tree and harness lived only in the
   session scratchpad and a `/var/tmp` dir that was removed.
-- **Not merged** in this pass; merge + release are a separate step.
+- **Not merged** in the review pass; merge + release were a separate step
+  (below).
+
+## Merged + released
+
+- **Head re-checked** just before merging: still `5905fcc`, `MERGEABLE` /
+  `CLEAN`, review `APPROVED`, 0 comments.
+- **Merge:** `gh pr merge 110 --merge --match-head-commit 5905fcc…` → merge
+  commit `1846254` (2026-10-12T00:21:02Z). `git diff --stat 5905fcc 1846254`
+  shows only this file (already on `main`); the script is blob `394dce0`, still
+  `100755`, and `bash -n` passes.
+- **Thank-you comment:** not posted separately. The APPROVE review already
+  opens and closes with thanks, so another comment would only repeat it.
+- **Release:** [v0.3.78](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/releases/tag/v0.3.78),
+  tagged on the commit that adds this section. Title: `v0.3.78 — Book5 bayer-fix
+  build: clearer errors, and step 9 now actually verifies the install`. Notes
+  cover the step 9 fix, the curl/`mv`/message follow-ups, who is affected, and
+  the author's tests plus the scratch-tree check.
+- **Not done (optional, no follow-up needed):** O1–O3 above.
+- **Still open:** the author's note that unknown distros and openSUSE keep the
+  libraries-only install, so #108's runpath problem can still happen there.
+  R1–R3 in `pr-107-review.md` are also still open.
