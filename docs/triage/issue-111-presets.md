@@ -41,3 +41,39 @@ Neither file contains personal paths or usernames (no IRS/convolver file
 references), so both were uploaded unmodified. The presets are not in the repo.
 
 Asked David to try Middle-A (and Headphones) on his Book5 Pro and report back.
+
+## Shipped — v0.3.79, 2026-10-12
+
+David agreed to shipping the presets with credit and to the rename
+([6131062873](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/111#issuecomment-6131062873)).
+Provenance ([6131352154](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/111#issuecomment-6131352154)):
+Warm was made from scratch from Windows-vs-Linux phone recordings (pink noise +
+a song) analysed with Claude; Clear = Warm + Book4-Middle-A. He attached the
+design doc in
+[6132014925](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/111#issuecomment-6132014925)
+(already uses the new names; nothing personal beyond his phone model, shipped as-is).
+
+- Commit `912875f`: `speaker-fix/easyeffects-presets/` — the 4 speaker presets
+  (byte-identical to David's `GalaxyBook5Pro-{Warm,Warm-Loud}-2.3` /
+  `{Clear,Clear-Loud}-2.4` attachments, checked with `cmp`),
+  `GalaxyBook-Headphones.json` (byte-identical to the gist's `Headphones.json`),
+  the design doc, README, `LICENSE-JackHack96` (MIT, Headphones is derived from
+  Advanced Auto Gain: only EQ gains changed — 113–358 Hz +4 → +1–2 dB,
+  0.7–1.8 kHz cuts softened), and `install-presets.sh` (user-level; native v8
+  + old v7 dir if present + Flatpak; skip differing files unless `--force`,
+  which keeps `.bak`; `--uninstall` removes unchanged copies and restores `.bak`).
+  Not hooked into `speaker-fix/install.sh`.
+- speaker-fix README "Improving sound quality with EasyEffects" points to these
+  first; JackHack96 kept as the alternative. Top-level README Sound Quality note
+  links the folder.
+- Release: <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/releases/tag/v0.3.79>
+- Thank-you comment: <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/111#issuecomment-6135181113>
+
+Tested the script against temp HOMEs with stubbed `easyeffects`/`flatpak`:
+none installed (error, exit 1), native only, Flatpak only (by `flatpak info`
+and by `~/.var/app` dir), native + v7 dir + Flatpak, differing file with and
+without `--force`, idempotent re-run, uninstall (incl. a user-edited file kept),
+root refused; plus the real main-tarball one-liner after push. bash -n and
+shellcheck 0.10.0 clean; all 5 JSONs parse.
+
+Issue stays open: David will test Headphones with wired headphones and close it.
