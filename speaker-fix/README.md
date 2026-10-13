@@ -222,6 +222,7 @@ speaker-fix/
 ├── max98390-hda-i2c-setup.service      # Systemd service for I2C setup
 ├── max98390-hda-check-upstream.sh      # Upstream detection + auto-removal
 ├── max98390-hda-check-upstream.service # Systemd service for upstream check
+├── easyeffects-presets/                # Optional EasyEffects presets (see its README)
 └── src/
     ├── Makefile                        # Kernel module build rules
     ├── max98390_hda.c                  # Core driver (init, component, PM)
@@ -285,9 +286,19 @@ sudo dnf install calf-plugins
 sudo pacman -S calf
 ```
 
-#### Recommended: JackHack96 presets
+#### Recommended: GalaxyBook presets
 
-The [JackHack96 EasyEffects Presets](https://github.com/JackHack96/EasyEffects-Presets) collection includes several presets tuned for different use cases. Install them all:
+[`easyeffects-presets/`](easyeffects-presets/) has presets made for these speakers: **Warm** (closest to Windows/Dolby, measured against Windows on a Book5 Pro), **Clear** (brighter mids and treble), a **Loud** version of each, and a **Headphones** preset. They're by [@david-bartlett](https://github.com/david-bartlett) and Andy ([#111](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/111)). Install them (no `sudo`):
+
+```bash
+cd easyeffects-presets && ./install-presets.sh
+```
+
+Then pick one in **Presets → Output**. See the [presets README](easyeffects-presets/) for which one to choose and how to make EasyEffects switch automatically between the speakers and headphones.
+
+#### Alternative: JackHack96 presets
+
+The [JackHack96 EasyEffects Presets](https://github.com/JackHack96/EasyEffects-Presets) collection includes several general-purpose presets tuned for different use cases. Install them all:
 
 ```bash
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/JackHack96/EasyEffects-Presets/master/install.sh)"
