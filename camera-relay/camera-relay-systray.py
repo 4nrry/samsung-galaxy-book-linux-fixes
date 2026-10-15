@@ -28,6 +28,10 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, GLib
 
+# Name shown by the tray/panel instead of the script filename
+GLib.set_prgname("camera-relay")
+GLib.set_application_name("Camera Relay")
+
 # Try AppIndicator3 (GNOME with extension, KDE, others)
 USE_APPINDICATOR = False
 try:
@@ -57,6 +61,7 @@ class CameraRelaySystray:
                 "camera-video-symbolic",
                 AppIndicator3.IndicatorCategory.HARDWARE,
             )
+            self.indicator.set_title("Camera Relay")
             self.indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
             self.indicator.set_menu(self._build_menu())
         else:
