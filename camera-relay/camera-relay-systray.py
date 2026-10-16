@@ -32,16 +32,17 @@ from gi.repository import Gtk, GLib
 GLib.set_prgname("camera-relay")
 GLib.set_application_name("Camera Relay")
 
-# Try AppIndicator3 (GNOME with extension, KDE, others)
+# Prefer Ayatana AppIndicator (publishes ToolTip, so KDE shows hover text),
+# fall back to legacy AppIndicator3. GNOME (with extension), KDE, others.
 USE_APPINDICATOR = False
 try:
-    gi.require_version("AppIndicator3", "0.1")
-    from gi.repository import AppIndicator3
+    gi.require_version("AyatanaAppIndicator3", "0.1")
+    from gi.repository import AyatanaAppIndicator3 as AppIndicator3
     USE_APPINDICATOR = True
 except (ValueError, ImportError):
     try:
-        gi.require_version("AyatanaAppIndicator3", "0.1")
-        from gi.repository import AyatanaAppIndicator3 as AppIndicator3
+        gi.require_version("AppIndicator3", "0.1")
+        from gi.repository import AppIndicator3
         USE_APPINDICATOR = True
     except (ValueError, ImportError):
         pass
@@ -67,8 +68,9 @@ class CameraRelaySystray:
         else:
             print(
                 "camera-relay-systray: AppIndicator3 not available. "
-                "Install gnome-shell-extension-appindicator (GNOME) or "
-                "libappindicator-gtk3 (KDE/other).",
+                "Install the Ayatana AppIndicator library "
+                "(gir1.2-ayatanaappindicator3-0.1 / libayatana-appindicator-gtk3 / "
+                "libayatana-appindicator); on GNOME also gnome-shell-extension-appindicator.",
                 file=sys.stderr,
             )
             print(
