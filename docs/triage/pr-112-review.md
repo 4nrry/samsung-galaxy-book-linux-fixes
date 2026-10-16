@@ -107,3 +107,14 @@ merging, use this:
 > Thanks @4nrry, this fixes the tray title. I confirmed `Title` goes from the script filename to "Camera Relay" on a test D-Bus session, and the StatusIcon fallback and the uninstallers' `pkill -f` are unaffected.
 >
 > One optional tweak before I merge: could you use `GLib.set_prgname("camera-relay-systray")` (matching `camera-relay-systray.desktop`) and move it above `from gi.repository import Gtk` (e.g. `from gi.repository import GLib` first)? Gtk captures the program class when it's imported, so setting the prgname afterwards leaves the dialogs with a mixed `WM_CLASS`. Matching the desktop-file ID should also let GNOME/Plasma show the dialogs with the Camera Relay name and icon. The tray `Title` doesn't depend on this, since `set_title` / `set_application_name` already handle it.
+
+## Merged + released (2026-10-15)
+
+- Approved: <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/112#pullrequestreview-5541554757>
+  (the draft merge comment above, without the O1 `WM_CLASS` paragraph).
+- Merged as `ca0d0b3` ("Merge pull request #112 from 4nrry/fix/systray-title"), merge commit. PR state `MERGED`.
+- Released as **v0.3.80**, "Camera Relay tray icon shows its name, not the script filename", tagged on `ca0d0b3`:
+  <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/releases/tag/v0.3.80>.
+  The notes say to re-run the installer or `sudo cp` the script to `/usr/local/share/camera-relay/`, because `git pull` alone doesn't update the installed copy.
+- Thank-you comment pointing to the release: <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/112#issuecomment-6205240334>.
+- O1 not requested (optional). P1 (`pgrep -x camera-relay-monitor`) left out of the PR and the release. It's still an open follow-up for Andy.
