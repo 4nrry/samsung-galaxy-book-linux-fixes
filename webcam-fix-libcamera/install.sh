@@ -1971,11 +1971,19 @@ EOF
     if [[ -f "$RELAY_DIR/camera-relay-monitor.c" ]]; then
         echo "  Building on-demand monitor..."
         if gcc -O2 -Wall -o /tmp/camera-relay-monitor "$RELAY_DIR/camera-relay-monitor.c"; then
-            # Stop running monitor before replacing binary (avoids "Text file busy")
-            if pgrep -x camera-relay-monitor >/dev/null 2>&1; then
+            # Stop the running monitor before replacing it, or the relay keeps
+            # running the old binary until the next login. Match the command
+            # line anchored on the installed path: the kernel cuts comm to 15
+            # characters ("camera-relay-mo"), so `pgrep -x camera-relay-monitor`
+            # never matched and this block never ran. The anchor keeps it off
+            # anything that merely mentions the path (gcc, editors, this shell).
+            _monitor_re='^/usr/local/bin/camera-relay-monitor( |$)'
+            if pgrep -f "$_monitor_re" >/dev/null 2>&1; then
+                echo "  Stopping the running camera relay to replace the monitor..."
                 systemctl --user stop camera-relay.service 2>/dev/null || true
-                pkill -x camera-relay-monitor 2>/dev/null || true
+                pkill -f "$_monitor_re" 2>/dev/null || true
                 sleep 1
+                _relay_stopped=1
             fi
             sudo install -m 755 /tmp/camera-relay-monitor /usr/local/bin/camera-relay-monitor
             sudo chmod 755 /usr/local/bin/camera-relay-monitor
@@ -2048,6 +2056,12 @@ EOF
     /usr/local/bin/camera-relay enable-persistent --yes 2>/dev/null && \
         echo "  ✓ On-demand relay enabled (near-zero idle CPU)" || \
         echo "  ⚠ Could not enable persistent relay — run 'camera-relay enable-persistent' after reboot"
+
+    # enable-persistent is a no-op when the unit is already enabled and
+    # unchanged, so bring back the relay the monitor replacement stopped.
+    if [[ "${_relay_stopped:-0}" == 1 ]]; then
+        systemctl --user start camera-relay.service 2>/dev/null || true
+    fi
 
     if [[ -n "$_relay_user" ]]; then
         ICON_DEST="${_relay_home}/.local/share/icons/hicolor/symbolic/apps"

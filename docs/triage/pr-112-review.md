@@ -118,3 +118,17 @@ merging, use this:
   The notes say to re-run the installer or `sudo cp` the script to `/usr/local/share/camera-relay/`, because `git pull` alone doesn't update the installed copy.
 - Thank-you comment pointing to the release: <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/112#issuecomment-6205240334>.
 - O1 not requested (optional). P1 (`pgrep -x camera-relay-monitor`) left out of the PR and the release. It's still an open follow-up for Andy.
+
+## P1 follow-up (2026-10-15)
+
+P1 is fixed outside the PR, in v0.3.81. Both installers now match the monitor
+with `pgrep -f '^/usr/local/bin/camera-relay-monitor( |$)'`. It's anchored
+because the unanchored form also matches any process whose command line
+mentions the path (it matched the shell running the check). With the block
+live, a new problem showed up: `enable-persistent` is a no-op when the unit is
+already enabled and hasn't changed, so the relay the block stopped would have
+stayed down until the next login. The installers now start it again after
+`enable-persistent`. `webcam-fix-book5/install.sh` never had the block at all:
+it copied over the running binary with `sudo cp`, which fails with "Text file
+busy", and `set -e` then aborted the install. It now uses `install(1)` and the
+same stop/restart block.
