@@ -1,6 +1,6 @@
 # PR #114 review — "Camera Relay tray: prefer Ayatana AppIndicator so the hover tooltip works."
 
-VERDICT: CHANGES REQUESTED (one small item: the hint-text change the PR describes isn't in the commit)
+VERDICT: CHANGES REQUESTED on `5c1e60d` → **READY on `1df01ea`, MERGED, released as v0.3.82** (see Re-check at the end)
 
 **Status (2026-10-16):** REQUEST_CHANGES review posted on head `5c1e60d` using the
 draft below, unchanged:
@@ -114,3 +114,27 @@ to match the new order. Cosmetic. Worth including only if David is pushing C1 an
 > I checked the import fallback with a stubbed `gi` for all four cases (Ayatana only, legacy only, both, neither). Only "both" changes, and it now picks Ayatana. I also ran it on a private D-Bus session, where `Id`, `Title` and the object path are unchanged and the uninstallers still find the tray.
 >
 > The hint-text hunk mentioned in the description didn't make it into the commit, so I'll update that line on `main` myself. Merging, thanks again!
+
+## Re-check (2026-10-16): head `1df01ea`, verdict READY
+
+David pushed `1df01ea` "Camera Relay tray: hint suggests Ayatana library; note
+import preference" on top of `5c1e60d`. I re-reviewed only that commit
+(`git diff 5c1e60d..1df01ea`) and then the whole final file.
+
+| # | Check | Result |
+|---|---|---|
+| R1 | **C1 resolved** | Lines 71–73 now say `Install the Ayatana AppIndicator library (gir1.2-ayatanaappindicator3-0.1 / libayatana-appindicator-gtk3 / libayatana-appindicator); on GNOME also gnome-shell-extension-appindicator.` That's the suggested wording word for word. The three package names match what `webcam-fix-libcamera/install.sh:2023-2035` and `webcam-fix-book5/install.sh:1194-1206` install. |
+| R2 | N1 picked up | The comment above the imports now says Ayatana is preferred because it publishes `ToolTip`, with legacy `AppIndicator3` as the fallback. |
+| R3 | Nothing else changed | The new commit is +5/−3 and touches only that comment and the hint string. Across the whole PR, `339d800..1df01ea` changes one file, `camera-relay/camera-relay-systray.py` (+9/−7). |
+| R4 | Import fallback unchanged | `try`/`except` lines 38–51 at `1df01ea` are byte-identical to lines 37–50 at `5c1e60d`, which is the block I verified on all four library combinations. That check still holds. |
+| R5 | Syntax | `python3 -m py_compile` on `git show 1df01ea:…`: OK. |
+| R6 | File mode | Still `100755`. |
+| R7 | Mergeable | `MERGEABLE` / `CLEAN`. The base is still `339d800`, and `main` has gained only the two docs commits for this review since then. |
+
+No new findings.
+
+**Outcome (2026-10-16):** APPROVE review posted on `1df01ea`
+(<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/114#pullrequestreview-5550499169>).
+Merged with a merge commit as `e273566`. #113 closed automatically. Tagged
+`v0.3.82` on `e273566` and released:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/releases/tag/v0.3.82>
