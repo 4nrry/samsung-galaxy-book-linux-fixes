@@ -2,6 +2,13 @@
 
 VERDICT: CHANGES REQUESTED (one small item: the hint-text change the PR describes isn't in the commit)
 
+**Status (2026-10-16):** REQUEST_CHANGES review posted on head `5c1e60d` using the
+draft below, unchanged:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/114#pullrequestreview-5545999899>
+(review 5545999899). The PR is still open and not merged, and #113 is still open.
+Waiting on @david-bartlett to push the hint-text hunk (C1). When he does, re-check
+the new head and then merge and release.
+
 Reviewed: 2026-10-16. Author: **@david-bartlett** (David Bartlett, also #107,
 #109, #110, #111, and issue #113). Head `5c1e60d` (1 commit), branch
 `camera-relay-systray-tooltip-fix`, based on `339d800` (current `main`).
