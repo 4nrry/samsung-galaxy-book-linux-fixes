@@ -35,13 +35,13 @@ GLib.set_application_name("Camera Relay")
 # Try AppIndicator3 (GNOME with extension, KDE, others)
 USE_APPINDICATOR = False
 try:
-    gi.require_version("AppIndicator3", "0.1")
-    from gi.repository import AppIndicator3
+    gi.require_version("AyatanaAppIndicator3", "0.1")
+    from gi.repository import AyatanaAppIndicator3 as AppIndicator3
     USE_APPINDICATOR = True
 except (ValueError, ImportError):
     try:
-        gi.require_version("AyatanaAppIndicator3", "0.1")
-        from gi.repository import AyatanaAppIndicator3 as AppIndicator3
+        gi.require_version("AppIndicator3", "0.1")
+        from gi.repository import AppIndicator3
         USE_APPINDICATOR = True
     except (ValueError, ImportError):
         pass
