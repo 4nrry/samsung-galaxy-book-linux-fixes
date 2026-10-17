@@ -60,6 +60,8 @@ WATCH_FILES = ("camera-relay-state", "camera-relay.pid")
 # Safety-net poll for anything the file watch could miss (e.g. a relay that
 # stopped long before this process started, or weird filesystem changes).
 FALLBACK_POLL_INTERVAL = 60  # seconds
+# Used instead when the watch cannot be set up: the tray's original cadence.
+UNWATCHED_POLL_INTERVAL = 5  # seconds
 
 
 class CameraRelaySystray:
@@ -96,9 +98,12 @@ class CameraRelaySystray:
 
         # Watch the daemon's runtime files so state changes reach the icon
         # immediately, then do an initial sync and set up the slow fallback.
-        self._install_runtime_watch()
+        watching = self._install_runtime_watch()
         self._poll_status()
-        GLib.timeout_add_seconds(FALLBACK_POLL_INTERVAL, self._poll_status)
+        GLib.timeout_add_seconds(
+            FALLBACK_POLL_INTERVAL if watching else UNWATCHED_POLL_INTERVAL,
+            self._poll_status,
+        )
 
     def _install_runtime_watch(self):
         """Monitor the runtime dir for changes to the relay's state files.
@@ -115,13 +120,15 @@ class CameraRelaySystray:
                 Gio.FileMonitorFlags.NONE, None
             )
             self._runtime_monitor.connect("changed", self._on_runtime_event)
-        except Exception as e:  # watcher unavailable -> keep poll-only
+            return True
+        except Exception as e:  # watcher unavailable -> back to the old poll
             self._runtime_monitor = None
             print(
                 "camera-relay-systray: file watch unavailable (%s), "
-                "relying on the %ds fallback poll." % (e, FALLBACK_POLL_INTERVAL),
+                "polling every %ds instead." % (e, UNWATCHED_POLL_INTERVAL),
                 file=sys.stderr,
             )
+            return False
 
     def _on_runtime_event(self, _monitor, file, _other_file, _event_type):
         name = file.get_basename() if file else ""
