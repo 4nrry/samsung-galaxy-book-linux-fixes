@@ -1083,44 +1083,58 @@ cmd_status() {
 # Stream one `status --json` line on every state change, forever.
 # Intended for event-driven clients (bars, scripts, this package's own
 # tray): instead of re-running `status --json` on a timer, everything can
-# follow this watcher and react within the poll interval — cheap even at
-# half-second cadence because the loop re-checks only the pid, the
-# persistent flag and the cached state file. Camera and loopback detection
-# get pinned once: the same caches `status --json` reads, except that
-# watch never re-probes hardware each tick (the fallback probes in
-# cmd_status would defeat the point of event-driven when the cache is
-# cold, e.g. while the relay has never started).
+# follow this watcher and react within the poll interval. Each line is
+# exactly what `status --json` would print at that moment.
+#
+# Cheap at half-second cadence because a tick forks almost nothing: the pid
+# check, and file reads done with `read` instead of `cat`. The two expensive
+# inputs are rate-limited instead:
+#   - persistent is a `systemctl --user is-enabled` round trip, so it is
+#     re-checked on every start/stop and otherwise every ~5 s;
+#   - camera and loopback fall back to a live probe only when their cache
+#     is empty, and only on a start/stop — `start` is what loads
+#     v4l2loopback, so a device pinned before the first start would
+#     otherwise stay "(not loaded)" forever.
 cmd_status_watch() {
-    local camera device
-    camera=$(detect_camera_name 2>/dev/null) || camera=""
-    [[ -z "$camera" ]] && camera="(not detected)"
-    device=$(detect_loopback_device 2>/dev/null) || device=""
-    [[ -z "$device" ]] && device="(not loaded)"
+    local camera="" device="" probed_camera="" probed_device=""
+    local last="" running=false was_running="" persistent=false state
+    local tick=0 entry
 
-    local last="" running=false persistent=false state="stopped"
     while :; do
         running=false
-        state="stopped"
-        if is_running; then
-            running=true
-            state=$(cat "$STATE_CACHE" 2>/dev/null) || state=""
-            case "$state" in
-                idle|streaming) ;;          # the two states the daemon tracks
-                *) state="running" ;;
-            esac
+        is_running && running=true
+
+        if [[ "$running" != "$was_running" ]] || (( tick % 10 == 0 )); then
+            persistent=false
+            is_persistent && persistent=true
         fi
-        persistent=false
-        is_persistent && persistent=true
+        if [[ "$running" != "$was_running" ]]; then
+            probed_camera=$(detect_camera_name 2>/dev/null) || probed_camera=""
+            probed_device=$(detect_loopback_device 2>/dev/null) || probed_device=""
+            was_running=$running
+        fi
+
+        camera=""; device=""; state=""
+        read -r camera 2>/dev/null < "$CAMERA_CACHE" || true
+        [[ -z "$camera" ]] && camera=$probed_camera
+        [[ -z "$camera" ]] && camera="(not detected)"
+        read -r device 2>/dev/null < "$DEVICE_CACHE" || true
+        [[ -z "$device" ]] && device=$probed_device
+        [[ -z "$device" ]] && device="(not loaded)"
+        # Same rule as cmd_status: the cached state when running, else stopped.
+        read -r state 2>/dev/null < "$STATE_CACHE" || true
+        [[ -z "$state" ]] && state="stopped"
+        $running || state="stopped"
 
         local json_camera="${camera//\\/\\\\}" json_device="${device//\\/\\\\}"
-        local entry
-        entry=$(printf '{"running":%s,"persistent":%s,"camera":"%s","device":"%s","state":"%s"}' \
-            "$running" "$persistent" "$json_camera" "$json_device" "$state")
+        printf -v entry '{"running":%s,"persistent":%s,"camera":"%s","device":"%s","state":"%s"}' \
+            "$running" "$persistent" "$json_camera" "$json_device" "$state"
 
         if [[ "$entry" != "$last" ]]; then
             printf '%s\n' "$entry"
             last=$entry
         fi
+        tick=$((tick + 1))
         sleep 0.5
     done
 }
