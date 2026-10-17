@@ -59,17 +59,18 @@
  * branches are appended (see main()):
  *
  *   "!"  caps  "!"  tee name=relayed  "!"  queue  "!"  v4l2sink  device=… \
- *     io-mode=mmap  sync=false  relayed.  "!"  queue  "!"  pipewiresink \
- *     mode=provide  stream-properties=…  sync=false                    → 20
- *   NULL terminator                                                  → 21
+ *     io-mode=mmap  sync=false  relayed.  "!"  queue  max-size-buffers=3 \
+ *     leaky=downstream  "!"  pipewiresink  mode=provide \
+ *     stream-properties=…  sync=false                                  → 22
+ *   NULL terminator                                                  → 23
  *
  * and one iteration of that loop can append two entries at once ("!" plus the
- * element name), so it has to stop while there is still room for both → 23.
+ * element name), so it has to stop while there is still room for both → 24.
  * The --v4l2-sink path without --pw-publish is the old 7/8 tail; the
  * --fd-sink path is shorter still, which is exactly what hid an
  * off-by-one here until it was caught under ASan.
  */
-#define TAIL_SLOTS 23
+#define TAIL_SLOTS 24
 
 /* Directory arguments must live under one of these. All root-owned, so a
  * validated path cannot point at anything the caller controls. */
@@ -323,7 +324,8 @@ static int append_user_cache(char **env, int n)
 static char **build_environment(const char *gst_plugin_path,
 				const char *ipa_path,
 				const char *softisp_mode,
-				const char *egl_vendor)
+				const char *egl_vendor,
+				int pw_publish)
 {
 	static char *env[12];
 	static char buf[6][PATH_MAX + 64];
@@ -355,6 +357,16 @@ static char **build_environment(const char *gst_plugin_path,
 	if (egl_vendor) {
 		snprintf(buf[b], sizeof(buf[b]),
 			 "__EGL_VENDOR_LIBRARY_FILENAMES=%s", egl_vendor);
+		env[n++] = buf[b++];
+	}
+	/* pipewiresink finds the session's PipeWire socket through
+	 * XDG_RUNTIME_DIR; without it the --pw-publish branch cannot connect
+	 * and the whole pipeline fails to start. Derived from the real uid,
+	 * never taken from the caller, so it can only name the caller's own
+	 * session directory. */
+	if (pw_publish) {
+		snprintf(buf[b], sizeof(buf[b]), "XDG_RUNTIME_DIR=/run/user/%u",
+			 (unsigned)getuid());
 		env[n++] = buf[b++];
 	}
 
@@ -466,7 +478,7 @@ int main(int argc, char *argv[])
 
 		cam_argv[0] = (char *)cam;
 		execve(cam, cam_argv, build_environment(gst_plugin_path, ipa_path,
-						        softisp_mode, egl_vendor));
+						        softisp_mode, egl_vendor, 0));
 		die("execve %s: %s", cam, strerror(errno));
 	}
 
@@ -538,8 +550,8 @@ int main(int argc, char *argv[])
 	 * alongside the loopback.
 	 *
 	 *   ... ! caps ! tee name=relayed ! queue ! v4l2sink|fdsink ... sync=false
-	 *       relayed. ! queue ! pipewiresink mode=provide \
-	 *         stream-properties=… sync=false
+	 *       relayed. ! queue max-size-buffers=3 leaky=downstream ! \
+	 *         pipewiresink mode=provide stream-properties=… sync=false
 	 *
 	 * mode=provide is what turns the sink into a producer other clients
 	 * can capture from; media.class=Video/Source is what makes it look
@@ -577,6 +589,12 @@ int main(int argc, char *argv[])
 		gst_argv[n++] = "relayed.";
 		gst_argv[n++] = "!";
 		gst_argv[n++] = "queue";
+		/* Leaky, like the queue behind libcamerasrc: if no consumer is
+		 * pulling from the PipeWire node, or the daemon stalls, this
+		 * branch drops frames instead of filling up and blocking the tee
+		 * — which would freeze the loopback every V4L2 app reads. */
+		gst_argv[n++] = "max-size-buffers=3";
+		gst_argv[n++] = "leaky=downstream";
 		gst_argv[n++] = "!";
 		gst_argv[n++] = "pipewiresink";
 		gst_argv[n++] = "mode=provide";
@@ -586,7 +604,8 @@ int main(int argc, char *argv[])
 	gst_argv[n] = NULL;
 
 	execve(gst, gst_argv,
-	       build_environment(gst_plugin_path, ipa_path, softisp_mode, egl_vendor));
+	       build_environment(gst_plugin_path, ipa_path, softisp_mode, egl_vendor,
+				 pw_publish));
 	die("execve %s: %s", gst, strerror(errno));
 	return 1;
 }

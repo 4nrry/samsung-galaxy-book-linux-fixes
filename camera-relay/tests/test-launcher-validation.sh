@@ -94,6 +94,7 @@ echo "── a chained color filter yields one separator per stage ──"
 cat > "$TMP/fake-gst" <<'STUB'
 #!/bin/sh
 echo "$*"
+echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR-unset}"
 STUB
 chmod +x "$TMP/fake-gst"
 sed "s|\"/usr/bin/gst-launch-1.0\", \"/usr/local/bin/gst-launch-1.0\"|\"$TMP/fake-gst\"|" \
@@ -113,6 +114,31 @@ else
         ok "two-stage filter"
     else
         bad "two-stage filter — unexpected pipeline: $out"
+    fi
+
+    # --pw-publish: the PipeWire branch must not be able to stall the
+    # loopback (leaky queue), and pipewiresink needs XDG_RUNTIME_DIR to find
+    # the session socket — which the launcher's scrubbed environment would
+    # otherwise drop. The caller's value must not be what gets through.
+    out=$(XDG_RUNTIME_DIR=/tmp/evil "$TMP/launcher-argv" --camera X \
+            --v4l2-sink /dev/video9 --pw-publish 3>/dev/null 2>&1)
+    want='tee name=relayed ! queue ! v4l2sink device=/dev/video9 io-mode=mmap sync=false relayed. ! queue max-size-buffers=3 leaky=downstream ! pipewiresink mode=provide'
+    if [[ "$out" == *"$want"* ]]; then
+        ok "--pw-publish tees into a leaky PipeWire branch"
+    else
+        bad "--pw-publish — unexpected pipeline: $out"
+    fi
+    if [[ "$out" == *"XDG_RUNTIME_DIR=/run/user/$(id -u)"* ]]; then
+        ok "--pw-publish passes the caller's own runtime dir, not their env"
+    else
+        bad "--pw-publish — runtime dir not set from the real uid: $out"
+    fi
+    out=$(XDG_RUNTIME_DIR=/tmp/evil "$TMP/launcher-argv" --camera X \
+            --v4l2-sink /dev/video9 3>/dev/null 2>&1)
+    if [[ "$out" == *"XDG_RUNTIME_DIR=unset"* && "$out" != *"tee"* ]]; then
+        ok "without --pw-publish the pipeline and environment are unchanged"
+    else
+        bad "without --pw-publish — unexpected output: $out"
     fi
 fi
 
@@ -168,12 +194,25 @@ echo "── argv buffer holds at the guard boundary ──"
 # than --fd-sink, and testing only the shorter one is what let an off-by-one
 # through. Every length must land in exactly one of two states — accepted, or
 # refused by the guard. A sanitizer report is neither.
+#
+# The sweep has to reach pipeline assembly to mean anything: on a machine
+# without gst-launch-1.0 the launcher dies before it touches the tail. Run it
+# against the stubbed launcher, sanitized when the toolchain allows.
+SWEEP="$SAN"
+if [[ -f "$TMP/launcher-argv.c" ]] && \
+   gcc -g -O1 -fsanitize=address,undefined -o "$TMP/launcher-argv-san" \
+       "$TMP/launcher-argv.c" 2>/dev/null; then
+    SWEEP="$TMP/launcher-argv-san"
+elif [[ -x "$TMP/launcher-argv" ]]; then
+    SWEEP="$TMP/launcher-argv"
+fi
 sweep_ok=1
-for sink in "--v4l2-sink /dev/video9" "--fd-sink 3"; do
+for sink in "--v4l2-sink /dev/video9" "--fd-sink 3" \
+            "--v4l2-sink /dev/video9 --pw-publish" "--fd-sink 3 --pw-publish"; do
     for k in $(seq 1 24); do
         filter="videoconvert"
         for ((i = 1; i < k; i++)); do filter="$filter ! videoconvert"; done
-        out=$("$SAN" --camera testcam $sink --color-filter "$filter" 3>/dev/null 2>&1)
+        out=$("$SWEEP" --camera testcam $sink --color-filter "$filter" 3>/dev/null 2>&1)
         if [[ "$out" == *"sanitizer"* || "$out" == *"runtime error"* \
               || "$out" == *"stack-buffer-overflow"* ]]; then
             bad "${sink%% *} with $k filters — sanitizer report"
@@ -183,7 +222,7 @@ for sink in "--v4l2-sink /dev/video9" "--fd-sink 3"; do
         fi
     done
 done
-(( sweep_ok )) && ok "1..24 chained filters on both sink paths, no sanitizer findings"
+(( sweep_ok )) && ok "1..24 chained filters on every sink path, no sanitizer findings"
 
 reject "an over-long device number" --camera X --v4l2-sink "/dev/video$(printf '9%.0s' {1..100})"
 
