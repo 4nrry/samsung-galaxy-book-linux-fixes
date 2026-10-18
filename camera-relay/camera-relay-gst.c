@@ -51,7 +51,9 @@
 #define CACHE_DIR "/var/cache/camera-relay"
 #endif
 
-#define MAX_ARGS 64
+/* 10 head + 45 color-filter + TAIL_SLOTS (24). The filter budget is what it
+ * was before --pw-publish grew the tail from 9 to 24. */
+#define MAX_ARGS 79
 
 /*
  * Slots append_color_filter() must leave free. The longest tail emitted after

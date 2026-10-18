@@ -206,20 +206,25 @@ if [[ -f "$TMP/launcher-argv.c" ]] && \
 elif [[ -x "$TMP/launcher-argv" ]]; then
     SWEEP="$TMP/launcher-argv"
 fi
+# Each "! videoconvert" stage takes two slots, so a sweep of those alone only
+# ever stops the guard at one parity and steps clean over an off-by-one at the
+# other. Lead with a stage that carries a property (three slots) as well.
 sweep_ok=1
 for sink in "--v4l2-sink /dev/video9" "--fd-sink 3" \
             "--v4l2-sink /dev/video9 --pw-publish" "--fd-sink 3 --pw-publish"; do
-    for k in $(seq 1 24); do
-        filter="videoconvert"
-        for ((i = 1; i < k; i++)); do filter="$filter ! videoconvert"; done
-        out=$("$SWEEP" --camera testcam $sink --color-filter "$filter" 3>/dev/null 2>&1)
-        if [[ "$out" == *"sanitizer"* || "$out" == *"runtime error"* \
-              || "$out" == *"stack-buffer-overflow"* ]]; then
-            bad "${sink%% *} with $k filters — sanitizer report"
-            echo "$out" | grep -m1 -E "ERROR|runtime error" | sed 's/^/        /'
-            sweep_ok=0
-            break 2
-        fi
+    for lead in "videoconvert" "videobalance saturation=1"; do
+        for k in $(seq 1 24); do
+            filter="$lead"
+            for ((i = 1; i < k; i++)); do filter="$filter ! videoconvert"; done
+            out=$("$SWEEP" --camera testcam $sink --color-filter "$filter" 3>/dev/null 2>&1)
+            if [[ "$out" == *"sanitizer"* || "$out" == *"runtime error"* \
+                  || "$out" == *"stack-buffer-overflow"* ]]; then
+                bad "${sink%% *} with $k filters (lead '$lead') — sanitizer report"
+                echo "$out" | grep -m1 -E "ERROR|runtime error" | sed 's/^/        /'
+                sweep_ok=0
+                break 3
+            fi
+        done
     done
 done
 (( sweep_ok )) && ok "1..24 chained filters on every sink path, no sanitizer findings"
