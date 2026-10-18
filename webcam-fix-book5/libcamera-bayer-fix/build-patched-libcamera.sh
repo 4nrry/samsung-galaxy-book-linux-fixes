@@ -45,6 +45,46 @@ fi
 
 REAL_USER="${SUDO_USER:-$USER}"
 
+# ─── Installed libcamera version ─────────────────────────────────────
+# Keep these two helpers byte-identical with webcam-fix-book5/install.sh
+# (camera-relay/tests/test-libcamera-version-detect.sh checks it).
+#
+# Prints the installed libcamera version as x.y.z: the newer of pkg-config
+# and the package manager, or nothing if neither knows one. pkg-config alone
+# loses to a stale dev package (Debian stable's libcamera-dev 0.4.0 next to a
+# 0.7.1 backport, issue #119); the package manager alone misses /usr/local
+# builds and the .pc our own full install writes.
+libcamera_installed_version() {
+    local pc="" pkg=""
+    if command -v pkg-config &>/dev/null; then
+        pc=$(pkg-config --modversion libcamera 2>/dev/null || true)
+    fi
+    if command -v dpkg &>/dev/null; then
+        pkg=$(dpkg -l 'libcamera*' 2>/dev/null | awk '/^ii.*libcamera0/ {print $3}' | sort -V | tail -1 || true)
+    fi
+    if [[ -z "$pkg" ]] && command -v rpm &>/dev/null; then
+        pkg=$(rpm -q --qf '%{VERSION}' libcamera 2>/dev/null || true)
+        [[ "$pkg" == *"not installed"* ]] && pkg=""
+    fi
+    if [[ -z "$pkg" ]] && command -v pacman &>/dev/null; then
+        pkg=$(pacman -Q libcamera 2>/dev/null | awk '{print $2}' || true)
+    fi
+    # Strip an epoch ("1:") and anything after x.y.z ("-1~bpo13+1", "+53-f4f8b487")
+    pc=$(echo "$pc" | grep -oP '^(\d+:)?\K\d+\.\d+\.\d+' || true)
+    pkg=$(echo "$pkg" | grep -oP '^(\d+:)?\K\d+\.\d+\.\d+' || true)
+    printf '%s\n' "$pc" "$pkg" | sort -V | tail -1
+}
+
+# Prints the version we actually build for distro version $1: 0.7.0 becomes
+# 0.7.2 (its SoftISP auto-exposure bug, issue #71), anything else is unchanged.
+floor_libcamera_version() {
+    if [[ "${1:-}" == "0.7.0" ]]; then
+        echo "0.7.2"
+    else
+        echo "${1:-}"
+    fi
+}
+
 # ─── Uninstall helpers ───────────────────────────────────────────────
 # True if a distro package owns PATH.
 pkg_owns() {
@@ -131,26 +171,17 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     # Check if the system libcamera version has changed since backup
     # (e.g., distro upgrade). Restoring stale backup files over a newer
     # version would break ABI compatibility and potentially brick camera.
+    # The backup records the version that was built (0.7.0 floored to 0.7.2),
+    # so floor the current one too rather than relying on the patched .pc.
     BACKUP_VERSION=$(cat "$BACKUP_DIR/version" 2>/dev/null || echo "")
-    CURRENT_VERSION=""
-    if command -v pkg-config &>/dev/null; then
-        CURRENT_VERSION=$(pkg-config --modversion libcamera 2>/dev/null || true)
-    fi
-    if [[ -z "$CURRENT_VERSION" ]] && command -v rpm &>/dev/null; then
-        CURRENT_VERSION=$(rpm -q --qf '%{VERSION}' libcamera 2>/dev/null || true)
-        [[ "$CURRENT_VERSION" == *"not installed"* ]] && CURRENT_VERSION=""
-    fi
-    if [[ -z "$CURRENT_VERSION" ]] && command -v pacman &>/dev/null; then
-        CURRENT_VERSION=$(pacman -Q libcamera 2>/dev/null | awk '{print $2}' | grep -oP '^\d+\.\d+\.\d+' || true)
-    fi
-    if [[ -z "$CURRENT_VERSION" ]] && command -v dpkg &>/dev/null; then
-        CURRENT_VERSION=$(dpkg -l 'libcamera*' 2>/dev/null | awk '/^ii.*libcamera0/ {print $3}' | sort -V | tail -1 | grep -oP '^\d+\.\d+\.\d+' || true)
-    fi
+    CURRENT_VERSION=$(floor_libcamera_version "$(libcamera_installed_version)")
 
     STALE_BACKUP=false
     if [[ -n "$BACKUP_VERSION" && -n "$CURRENT_VERSION" ]]; then
-        # Extract just major.minor.patch for comparison
+        # Extract just major.minor.patch for comparison. Backups made before
+        # the #71 floor recorded 0.7.0 for what is now built as 0.7.2.
         BACKUP_VER_CLEAN=$(echo "$BACKUP_VERSION" | grep -oP '^\d+\.\d+\.\d+' || echo "$BACKUP_VERSION")
+        BACKUP_VER_CLEAN=$(floor_libcamera_version "$BACKUP_VER_CLEAN")
         CURRENT_VER_CLEAN=$(echo "$CURRENT_VERSION" | grep -oP '^\d+\.\d+\.\d+' || echo "$CURRENT_VERSION")
         if [[ "$BACKUP_VER_CLEAN" != "$CURRENT_VER_CLEAN" ]]; then
             STALE_BACKUP=true
@@ -254,26 +285,7 @@ detect_libcamera_version() {
     LIBCAMERA_VERSION=""
     LIBCAMERA_GIT_TAG=""
 
-    # Try pkg-config first
-    if command -v pkg-config &>/dev/null; then
-        LIBCAMERA_VERSION=$(pkg-config --modversion libcamera 2>/dev/null || true)
-    fi
-
-    # Try dpkg on Debian/Ubuntu
-    if [[ -z "$LIBCAMERA_VERSION" ]] && command -v dpkg &>/dev/null; then
-        LIBCAMERA_VERSION=$(dpkg -l 'libcamera*' 2>/dev/null | awk '/^ii.*libcamera0/ {print $3}' | sort -V | tail -1 || true)
-    fi
-
-    # Try rpm on Fedora
-    if [[ -z "$LIBCAMERA_VERSION" ]] && command -v rpm &>/dev/null; then
-        LIBCAMERA_VERSION=$(rpm -q --qf '%{VERSION}' libcamera 2>/dev/null || true)
-        [[ "$LIBCAMERA_VERSION" == *"not installed"* ]] && LIBCAMERA_VERSION=""
-    fi
-
-    # Try pacman on Arch
-    if [[ -z "$LIBCAMERA_VERSION" ]] && command -v pacman &>/dev/null; then
-        LIBCAMERA_VERSION=$(pacman -Q libcamera 2>/dev/null | awk '{print $2}' || true)
-    fi
+    LIBCAMERA_VERSION=$(libcamera_installed_version)
 
     if [[ -z "$LIBCAMERA_VERSION" ]]; then
         die "libcamera is not installed. Run install.sh (it installs libcamera first), or install libcamera from your package manager, then re-run this script."
