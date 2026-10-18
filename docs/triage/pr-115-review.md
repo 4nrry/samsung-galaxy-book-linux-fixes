@@ -1,14 +1,13 @@
 # PR #115 review — "camera-relay: add status-watch — event-driven JSON status feed"
 
-VERDICT: CHANGES REQUESTED on `b24eb60`
+VERDICT: CHANGES REQUESTED on `b24eb60` → **READY on `a712d6f`, MERGED, released as v0.3.83** (see Re-check at the end)
 
 **Status (2026-10-18):** REQUEST_CHANGES review posted on head `b24eb60` using the
 draft below, unchanged:
 <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/115#pullrequestreview-5563830467>
-(review 5563830467). The PR is still open and not merged, and nothing has been
-pushed to the contributor branch. Waiting on @lautalom to push the F1 help-line
-fix. When they do, re-check the new head (see the end of this doc), then merge
-and release v0.3.83.
+(review 5563830467). @lautalom pushed `a712d6f` with F1 and N1–N4 fixed. It was
+re-checked, approved, merged as `6ebbac2` and released as v0.3.83 (see the
+Outcome line at the end). N5 (the test) is still ours to add on `main`.
 
 Reviewed: 2026-10-18. Author: **@lautalom** (Lautaro Lombardi). Head `b24eb60`
 (2 commits: `93902c8`, `b24eb60`), branch `camera-relay-status-watch`, based on
@@ -171,3 +170,38 @@ When @lautalom pushes the F1 fix:
    (`gh release create` on the merge commit) with notes describing
    `camera-relay status-watch`.
 5. Optional follow-ups on `main`: N5 test, N3 empty-read fix, N1 comment.
+
+## Re-check (2026-10-18): head `a712d6f`, verdict READY
+
+@lautalom pushed `a712d6f` "camera-relay: status-watch review fixes" on top of
+`b24eb60` and listed each fix in a comment (16:28Z). The commit touches only
+`camera-relay/camera-relay` (+21/−9 over `b24eb60`; +73/−0 for the whole PR
+against `main`). Research ran on copies in a scratch dir; I re-ran R1, R2 and R10
+myself on this card against `git show a712d6f:…`.
+
+| # | Check | Result |
+|---|---|---|
+| R1 | **F1 resolved** | `camera-relay help \| grep status-watch` prints `  status-watch          Stream status --json lines, one per change`, and stderr is 0 bytes. The only backticks left near it are in a code comment (line 1091), which is not in the heredoc. |
+| R2 | Syntax | `bash -n` passes. |
+| R3 | shellcheck 0.11.0 | 2 findings on the PR, 2 on `main`, same list, so the SC2006 at the help line is gone. |
+| R4 | N1 | The comment no longer names the tray as a consumer and says it watches the runtime files directly. |
+| R5 | N2 | Reworded to "Cheap at half-second cadence, though not free (about 1% of one core)". This run measured 17 CPU ticks per 10 s (18 per 20 s last time), so roughly 1–2% under harness noise; "about 1%" is fair. |
+| R6 | N3 | New `prev_state`: if the state file exists but reads empty, the watcher keeps the previous state. A missing file still reports `stopped`, the same as `status --json`. Harness: emptied the file for 1.2 s while "streaming". The watcher printed nothing and kept `streaming`, while `status --json` at that moment printed `"state":""`. This is now the one place the two outputs deliberately differ. |
+| R7 | N4 | A comment now says a closed reader is noticed only on the next write, so `\| head -1` blocks until the next change. |
+| R8 | Harness re-run | Five transitions (stopped, idle, streaming, persistent on, pid killed) gave exactly five lines, each byte-identical to `status --json` at that step, including the `\\_SB_.PC00.LNK0` escaping. Removing the state file afterwards gave no extra line. |
+| R9 | Unchanged behaviour | Persistent flag shows up within 5 s; SIGTERM → rc 143; `status-watch \| head -1` exits 141 on the next change. |
+| R10 | File mode | Still `100755`. |
+| R11 | Mergeable | `MERGEABLE` / `CLEAN`; a trial merge onto `origin/main` had no conflicts. `main` had only this review's two docs commits (`1fef553`, `ec3eb48`) past the PR's base. No CI. |
+| R12 | N5 | No test added; left to us after merge, as offered. |
+
+No new findings.
+
+**Outcome (2026-10-18):** APPROVE review posted on `a712d6f`
+(<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/115#pullrequestreview-5564025724>,
+review 5564025724), replacing the CHANGES_REQUESTED review 5563830467. Merged with
+a merge commit as `6ebbac2`. The PR fixes no issue, so nothing else closed. Tagged
+`v0.3.83` on `6ebbac2` and released:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/releases/tag/v0.3.83>.
+Thank-you comment:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/115#issuecomment-6252809247>.
+Open follow-up: N5, `camera-relay/tests/test-status-watch.sh`.
