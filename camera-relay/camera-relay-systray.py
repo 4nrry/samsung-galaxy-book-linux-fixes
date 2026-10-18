@@ -50,10 +50,11 @@ except (ValueError, ImportError):
 RELAY_CMD = "/usr/local/bin/camera-relay"
 
 # Runtime state files written by camera-relay in its cache dir (same paths as
-# STATE_CACHE / PID_FILE there). The daemon flips the state file between
-# "idle" and "streaming" on every transition and removes it (plus the pid
-# file) on stop — so watching them means the icon can react in milliseconds
-# instead of waiting for the next poll.
+# STATE_CACHE / PID_FILE there, except under $RUNTIME_DIRECTORY, which only
+# the Nix unit sets — and Nix ships no tray). The daemon flips the state file
+# between "idle" and "streaming" on every transition and removes it (plus the
+# pid file) on stop — so watching them means the icon can react in
+# milliseconds instead of waiting for the next poll.
 RUNTIME_DIR = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 WATCH_FILES = ("camera-relay-state", "camera-relay.pid")
 
@@ -68,6 +69,7 @@ class CameraRelaySystray:
     def __init__(self):
         self.running = False
         self.persistent = False
+        self._pending_poll_source = None
 
         if USE_APPINDICATOR:
             self.indicator = AppIndicator3.Indicator.new(
@@ -110,7 +112,7 @@ class CameraRelaySystray:
 
         Uses one directory watcher (handles create/delete/attribution, and
         the file does not have to exist yet — e.g. when the relay is stopped
-        at startup). Events are debounced: `cat > file` triggers
+        at startup). Events are debounced: `echo … > file` triggers
         several inotify events in quick succession, and each of those would
         otherwise spawn a status subprocess.
         """
@@ -137,7 +139,7 @@ class CameraRelaySystray:
 
     def _deferred_poll(self):
         """Coalesce bursts of watch events into one poll shortly after."""
-        if getattr(self, "_pending_poll_source", None):
+        if self._pending_poll_source:
             return
         self._pending_poll_source = GLib.timeout_add(250, self._poll_returns_false)
 
@@ -293,7 +295,8 @@ class CameraRelaySystray:
     def _on_persistent_toggle(self, _widget):
         if self.persistent:
             subprocess.Popen([RELAY_CMD, "disable-persistent"])
-            GLib.timeout_add(1000, self._poll_status)
+            # One-shot: _poll_status returns True, which would repeat forever.
+            GLib.timeout_add(1000, lambda: self._poll_status() and False)
         else:
             self._show_persistent_warning()
 
@@ -320,7 +323,8 @@ class CameraRelaySystray:
 
         if response == Gtk.ResponseType.OK:
             subprocess.Popen([RELAY_CMD, "enable-persistent", "--yes"])
-            GLib.timeout_add(1000, self._poll_status)
+            # One-shot: _poll_status returns True, which would repeat forever.
+            GLib.timeout_add(1000, lambda: self._poll_status() and False)
 
     def _on_hide(self, _widget):
         """Just close the indicator — relay keeps running."""
