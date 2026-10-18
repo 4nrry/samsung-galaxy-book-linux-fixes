@@ -1,11 +1,10 @@
 # PR #116 review — "camera-relay-systray: replace the 5s poll with an inotify state watch"
 
-VERDICT: **READY TO MERGE** on `4c932ff` (no blockers; findings 1–5 are non-blocking) → **APPROVED, MERGED as `611d2ee`** (see Outcome at the end)
+VERDICT: **READY TO MERGE** on `4c932ff` (no blockers; findings 1–5 are non-blocking) → **APPROVED, MERGED as `611d2ee`, follow-up `7b31b8c`, released v0.3.84** (see Outcome at the end)
 
 **Status (2026-10-18):** approved with a thank-you (review 5564122898) and
-merged with a merge commit as `611d2ee`, like #114 and #115. Still to do on
-`main`: fix finding 1 (with nits 2 and 3), then release **v0.3.84** (latest is
-v0.3.83).
+merged with a merge commit as `611d2ee`, like #114 and #115. Finding 1 and
+nits 2–3 fixed on `main` as `7b31b8c`; released as **v0.3.84** on that commit.
 
 Reviewed: 2026-10-18. Author: **@lautalom** (Lautaro Lombardi), their third PR
 in a row after #112 and #115. Head `4c932ff` (2 commits: `c91fb9f`, `4c932ff`),
@@ -109,5 +108,17 @@ under 1 ms.
 just before approving. APPROVE review posted using the comment above, unchanged:
 <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/116#pullrequestreview-5564122898>
 (review 5564122898). Merged with a merge commit as `611d2ee` at 17:46:50Z. The PR
-fixes no issue, so nothing else closed. Not released yet: v0.3.84 waits for the
-finding-1 follow-up above.
+fixes no issue, so nothing else closed.
+
+Follow-up `7b31b8c` on `main` ("make persistent-toggle polls one-shot, #116
+review nits"): both persistent-toggle timers are now
+`GLib.timeout_add(1000, lambda: self._poll_status() and False)`; the watch
+docstring says `echo … > file`; the `WATCH_FILES` comment notes the
+`$RUNTIME_DIRECTORY` (Nix-only) exception; `_pending_poll_source` is set in
+`__init__` and read directly. Checked with `py_compile`, and a GLib main-loop
+test showed the old bare-method timer firing 10 times in ~1 s against once for
+the lambda. Not tested on hardware. The 60 s `FALLBACK_POLL_INTERVAL` safety net is untouched.
+Tagged `v0.3.84` on `7b31b8c` and released:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/releases/tag/v0.3.84>.
+Shipped comment:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/116#issuecomment-6253125578>.
