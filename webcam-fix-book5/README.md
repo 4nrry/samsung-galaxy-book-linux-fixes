@@ -3,7 +3,7 @@
 > **Confirmed working** on Samsung Galaxy Book5 Pro 940XHA (Fedora 43), 960XHA (Ubuntu 24.04), Galaxy Book5 360 (Fedora 42), Dell XPS 13 9350 (Arch), and Lenovo X1 Carbon Gen13 (Fedora 42). If you test on another model, please open an issue with your results.
 
 **Status:** Confirmed working
-**Supported distros:** Arch-based (CachyOS, Manjaro, EndeavourOS), Fedora 42+, and Ubuntu (with libcamera 0.5.2+ built from source)
+**Supported distros:** Arch-based (CachyOS, Manjaro, EndeavourOS), Fedora 42+, Ubuntu (with libcamera 0.5.2+), and Debian (experimental, with libcamera 0.5.2+)
 **Hardware:** Intel IPU7 (Lunar Lake, PCI ID `8086:645d` or `8086:6457`), OV02C10 (`OVTI02C1`) or OV02E10 (`OVTI02E1`) sensor
 
 ---
