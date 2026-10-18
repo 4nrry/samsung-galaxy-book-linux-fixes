@@ -144,7 +144,7 @@ if [[ "${1:-}" == "--uninstall" ]]; then
         CURRENT_VERSION=$(pacman -Q libcamera 2>/dev/null | awk '{print $2}' | grep -oP '^\d+\.\d+\.\d+' || true)
     fi
     if [[ -z "$CURRENT_VERSION" ]] && command -v dpkg &>/dev/null; then
-        CURRENT_VERSION=$(dpkg -l 'libcamera*' 2>/dev/null | awk '/^ii.*libcamera0/ {print $3}' | head -1 | grep -oP '^\d+\.\d+\.\d+' || true)
+        CURRENT_VERSION=$(dpkg -l 'libcamera*' 2>/dev/null | awk '/^ii.*libcamera0/ {print $3}' | sort -V | tail -1 | grep -oP '^\d+\.\d+\.\d+' || true)
     fi
 
     STALE_BACKUP=false
@@ -261,7 +261,7 @@ detect_libcamera_version() {
 
     # Try dpkg on Debian/Ubuntu
     if [[ -z "$LIBCAMERA_VERSION" ]] && command -v dpkg &>/dev/null; then
-        LIBCAMERA_VERSION=$(dpkg -l 'libcamera*' 2>/dev/null | awk '/^ii.*libcamera0/ {print $3}' | head -1 || true)
+        LIBCAMERA_VERSION=$(dpkg -l 'libcamera*' 2>/dev/null | awk '/^ii.*libcamera0/ {print $3}' | sort -V | tail -1 || true)
     fi
 
     # Try rpm on Fedora
