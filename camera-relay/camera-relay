@@ -1081,14 +1081,19 @@ cmd_status() {
 }
 
 # Stream one `status --json` line on every state change, forever.
-# Intended for event-driven clients (bars, scripts, this package's own
-# tray): instead of re-running `status --json` on a timer, everything can
-# follow this watcher and react within the poll interval. Each line is
-# exactly what `status --json` would print at that moment.
+# Intended for event-driven clients such as bars and scripts: instead of
+# re-running `status --json` on a timer, they can follow this watcher and
+# react within the poll interval. Each line is what `status --json` would
+# print at that moment. (The tray doesn't use it; it watches the runtime
+# files directly.)
 #
-# Cheap at half-second cadence because a tick forks almost nothing: the pid
-# check, and file reads done with `read` instead of `cat`. The two expensive
-# inputs are rate-limited instead:
+# Like any stream, a closed reader is only noticed on the next write, so
+# `camera-relay status-watch | head -1` blocks until the next state change,
+# when the write fails and the watcher exits.
+#
+# Cheap at half-second cadence, though not free (about 1% of one core): a
+# tick forks only for the pid check and the sleep, and reads files with
+# `read` instead of `cat`. The two expensive inputs are rate-limited:
 #   - persistent is a `systemctl --user is-enabled` round trip, so it is
 #     re-checked on every start/stop and otherwise every ~5 s;
 #   - camera and loopback fall back to a live probe only when their cache
@@ -1098,7 +1103,7 @@ cmd_status() {
 cmd_status_watch() {
     local camera="" device="" probed_camera="" probed_device=""
     local last="" running=false was_running="" persistent=false state
-    local tick=0 entry
+    local tick=0 entry prev_state=""
 
     while :; do
         running=false
@@ -1122,9 +1127,16 @@ cmd_status_watch() {
         [[ -z "$device" ]] && device=$probed_device
         [[ -z "$device" ]] && device="(not loaded)"
         # Same rule as cmd_status: the cached state when running, else stopped.
+        # The relay rewrites the file with `echo ... >`, which leaves it empty
+        # for an instant; a tick landing there keeps the previous state
+        # rather than emitting a one-off spurious line.
         read -r state 2>/dev/null < "$STATE_CACHE" || true
+        if [[ -z "$state" && -e "$STATE_CACHE" && -n "$prev_state" ]]; then
+            state=$prev_state
+        fi
         [[ -z "$state" ]] && state="stopped"
         $running || state="stopped"
+        prev_state=$state
 
         local json_camera="${camera//\\/\\\\}" json_device="${device//\\/\\\\}"
         printf -v entry '{"running":%s,"persistent":%s,"camera":"%s","device":"%s","state":"%s"}' \
@@ -1966,7 +1978,7 @@ Commands:
   stop                  Stop the camera relay
   status                Show relay status
   status --json         Show status as JSON
-  status-watch          Stream one `status --json` line per state change
+  status-watch          Stream status --json lines, one per change
   doctor                Full diagnostic report (paste this into a bug report)
   enable-persistent     Auto-start on-demand relay on login
   enable-persistent --yes  Skip confirmation prompt
