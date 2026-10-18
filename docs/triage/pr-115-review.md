@@ -7,7 +7,7 @@ draft below, unchanged:
 <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/115#pullrequestreview-5563830467>
 (review 5563830467). The PR is still open and not merged, and nothing has been
 pushed to the contributor branch. Waiting on @lautalom to push the F1 help-line
-fix. When he does, re-check the new head (see the end of this doc), then merge
+fix. When they do, re-check the new head (see the end of this doc), then merge
 and release v0.3.83.
 
 Reviewed: 2026-10-18. Author: **@lautalom** (Lautaro Lombardi). Head `b24eb60`
@@ -167,7 +167,7 @@ When @lautalom pushes the F1 fix:
 1. `git fetch origin pull/115/head:pr-115` and confirm only the help line changed (`git diff b24eb60..pr-115`).
 2. `bash -n`, and shellcheck with no SC2006 at the help line.
 3. `camera-relay help | grep status-watch` shows the full sentence, with nothing on stderr.
-4. Approve, merge, close, thank him in a comment, then release **v0.3.83**
+4. Approve, merge, close, thank them in a comment, then release **v0.3.83**
    (`gh release create` on the merge commit) with notes describing
    `camera-relay status-watch`.
 5. Optional follow-ups on `main`: N5 test, N3 empty-read fix, N1 comment.
