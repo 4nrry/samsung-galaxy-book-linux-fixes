@@ -3,8 +3,8 @@
 VERDICT: **READY TO MERGE** on `e2b7341` (no blockers; finding 1 is a nit, 2–3 are notes) → **APPROVED, MERGED as `2929af2`** (see Outcome at the end)
 
 **Status (2026-10-18):** approved with a thank-you (review 5564610666) and
-merged with a merge commit as `2929af2`, like #114–#116. Follow-up for
-finding 1 and the v0.3.85 release are not done yet.
+merged with a merge commit as `2929af2`, like #114–#116. Finding 1 fixed on
+`main` in `f6eae08`, released as **v0.3.85** on `f6eae08`.
 
 Reviewed: 2026-10-18. Author: **@lautalom** (Lautaro Lombardi), their fourth PR
 in a row after #112, #115 and #116. Head `e2b7341` (2 commits: `4b80b4f`, and
@@ -112,4 +112,20 @@ just before approving. APPROVE review posted using the comment above, unchanged:
 <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/117#pullrequestreview-5564610666>
 (review 5564610666). Merged with a merge commit (`--match-head-commit e2b7341`)
 as `2929af2` at 19:32:16Z. The PR fixes no issue, so nothing else closed; #118
-is handled separately. Follow-up items 1–3 above are still open.
+is handled separately.
+
+**Follow-up and release (2026-10-18):** Item 1 done in `f6eae08`: `MAX_ARGS`
+64 → 79 (head 10 + filter 45 + `TAIL_SLOTS` 24), with a comment saying so. The
+argv-boundary sweep now also leads with a three-slot stage
+(`videobalance saturation=1`), because a sweep of two-slot `! videoconvert`
+stages only ever stops the guard at one parity. Before tagging:
+`camera-relay/tests/test-launcher-validation.sh` 33/33, and clean compiles with
+`gcc -Wall -Wextra`, with and without `-DCAMERA_RELAY_USER_CACHE`. Line 54 is
+not a `substituteInPlace` target in `nixos/webcam-fix-book5.nix`.
+Released as **v0.3.85** on `f6eae08`, titled "Camera relay can publish a
+native PipeWire camera node (opt-in)". The notes cover the
+`RELAY_PW_PUBLISH=1` drop-in, the author's two known limitations and the
+`MAX_ARGS` change:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/releases/tag/v0.3.85>.
+Item 3 is done. Item 2 (README for `RELAY_PW_PUBLISH` and
+`RELAY_COLOR_FILTER`) is still open as an optional docs task.
