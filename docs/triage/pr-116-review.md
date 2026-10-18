@@ -1,10 +1,11 @@
 # PR #116 review — "camera-relay-systray: replace the 5s poll with an inotify state watch"
 
-VERDICT: **READY TO MERGE** on `4c932ff` (no blockers; findings 1–5 are non-blocking)
+VERDICT: **READY TO MERGE** on `4c932ff` (no blockers; findings 1–5 are non-blocking) → **APPROVED, MERGED as `611d2ee`** (see Outcome at the end)
 
-**Status (2026-10-18):** approve with a thank-you, merge with a merge commit
-(like #114 and #115), then fix finding 1 ourselves on `main` and release as
-**v0.3.84** (latest is v0.3.83). See the Outcome at the end.
+**Status (2026-10-18):** approved with a thank-you (review 5564122898) and
+merged with a merge commit as `611d2ee`, like #114 and #115. Still to do on
+`main`: fix finding 1 (with nits 2 and 3), then release **v0.3.84** (latest is
+v0.3.83).
 
 Reviewed: 2026-10-18. Author: **@lautalom** (Lautaro Lombardi), their third PR
 in a row after #112 and #115. Head `4c932ff` (2 commits: `c91fb9f`, `4c932ff`),
@@ -103,3 +104,10 @@ under 1 ms.
 1. Finding 1: make the persistent-toggle polls at L296 / L323 one-shot.
 2. Findings 2 and 3: docstring wording, and `self._pending_poll_source = None` in `__init__`.
 3. Release **v0.3.84** covering #116 and the follow-up (check `gh release list` first).
+
+**Outcome (2026-10-18):** Head re-confirmed as `4c932ff`, `MERGEABLE` / `CLEAN`,
+just before approving. APPROVE review posted using the comment above, unchanged:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/116#pullrequestreview-5564122898>
+(review 5564122898). Merged with a merge commit as `611d2ee` at 17:46:50Z. The PR
+fixes no issue, so nothing else closed. Not released yet: v0.3.84 waits for the
+finding-1 follow-up above.
