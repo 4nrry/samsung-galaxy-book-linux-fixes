@@ -1080,6 +1080,77 @@ cmd_status() {
     fi
 }
 
+# Stream one `status --json` line on every state change, forever.
+# Intended for event-driven clients such as bars and scripts: instead of
+# re-running `status --json` on a timer, they can follow this watcher and
+# react within the poll interval. Each line is what `status --json` would
+# print at that moment. (The tray doesn't use it; it watches the runtime
+# files directly.)
+#
+# Like any stream, a closed reader is only noticed on the next write, so
+# `camera-relay status-watch | head -1` blocks until the next state change,
+# when the write fails and the watcher exits.
+#
+# Cheap at half-second cadence, though not free (about 1% of one core): a
+# tick forks only for the pid check and the sleep, and reads files with
+# `read` instead of `cat`. The two expensive inputs are rate-limited:
+#   - persistent is a `systemctl --user is-enabled` round trip, so it is
+#     re-checked on every start/stop and otherwise every ~5 s;
+#   - camera and loopback fall back to a live probe only when their cache
+#     is empty, and only on a start/stop — `start` is what loads
+#     v4l2loopback, so a device pinned before the first start would
+#     otherwise stay "(not loaded)" forever.
+cmd_status_watch() {
+    local camera="" device="" probed_camera="" probed_device=""
+    local last="" running=false was_running="" persistent=false state
+    local tick=0 entry prev_state=""
+
+    while :; do
+        running=false
+        is_running && running=true
+
+        if [[ "$running" != "$was_running" ]] || (( tick % 10 == 0 )); then
+            persistent=false
+            is_persistent && persistent=true
+        fi
+        if [[ "$running" != "$was_running" ]]; then
+            probed_camera=$(detect_camera_name 2>/dev/null) || probed_camera=""
+            probed_device=$(detect_loopback_device 2>/dev/null) || probed_device=""
+            was_running=$running
+        fi
+
+        camera=""; device=""; state=""
+        read -r camera 2>/dev/null < "$CAMERA_CACHE" || true
+        [[ -z "$camera" ]] && camera=$probed_camera
+        [[ -z "$camera" ]] && camera="(not detected)"
+        read -r device 2>/dev/null < "$DEVICE_CACHE" || true
+        [[ -z "$device" ]] && device=$probed_device
+        [[ -z "$device" ]] && device="(not loaded)"
+        # Same rule as cmd_status: the cached state when running, else stopped.
+        # The relay rewrites the file with `echo ... >`, which leaves it empty
+        # for an instant; a tick landing there keeps the previous state
+        # rather than emitting a one-off spurious line.
+        read -r state 2>/dev/null < "$STATE_CACHE" || true
+        if [[ -z "$state" && -e "$STATE_CACHE" && -n "$prev_state" ]]; then
+            state=$prev_state
+        fi
+        [[ -z "$state" ]] && state="stopped"
+        $running || state="stopped"
+        prev_state=$state
+
+        local json_camera="${camera//\\/\\\\}" json_device="${device//\\/\\\\}"
+        printf -v entry '{"running":%s,"persistent":%s,"camera":"%s","device":"%s","state":"%s"}' \
+            "$running" "$persistent" "$json_camera" "$json_device" "$state"
+
+        if [[ "$entry" != "$last" ]]; then
+            printf '%s\n' "$entry"
+            last=$entry
+        fi
+        tick=$((tick + 1))
+        sleep 0.5
+    done
+}
+
 # One-shot report covering every layer between the sensor and the browser.
 # Issue #65 took six round trips because "the relay starts but the browser sees
 # nothing" had no single command that could tell those layers apart: a working
@@ -1907,6 +1978,7 @@ Commands:
   stop                  Stop the camera relay
   status                Show relay status
   status --json         Show status as JSON
+  status-watch          Stream status --json lines, one per change
   doctor                Full diagnostic report (paste this into a bug report)
   enable-persistent     Auto-start on-demand relay on login
   enable-persistent --yes  Skip confirmation prompt
@@ -1925,6 +1997,7 @@ case "${1:-}" in
     start)              cmd_start "${2:-}" ;;
     stop)               cmd_stop ;;
     status)             cmd_status "${2:-}" ;;
+    status-watch)       cmd_status_watch ;;
     doctor)             cmd_doctor ;;
     nudge-wireplumber)  cmd_nudge_wireplumber ;;
     enable-persistent)  cmd_enable_persistent "${2:-}" ;;
