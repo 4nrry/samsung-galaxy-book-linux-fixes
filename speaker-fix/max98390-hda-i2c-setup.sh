@@ -53,6 +53,8 @@ find_i2c_bus() {
 # on 2-amp systems like the Galaxy Book 2 Pro SE).
 find_present_addrs() {
     local bus="$1" addr present=""
+    # i2cget needs /dev/i2c-N; some distros (e.g. Debian/MX) don't load i2c-dev by default
+    [ -e "/dev/i2c-$bus" ] || modprobe i2c-dev 2>/dev/null || true
     for addr in $ALL_ADDRS; do
         # Skip ACPI-created device (0x38) — already bound
         [ "$addr" = "0x38" ] && continue
