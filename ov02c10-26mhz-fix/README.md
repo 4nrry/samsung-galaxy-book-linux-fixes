@@ -84,7 +84,15 @@ After installing, check that the driver loaded without the clock error:
 dmesg | grep -i ov02c10
 ```
 
-You should no longer see `external clock 26000000 is not supported`.
+You should no longer see `external clock 26000000 is not supported`. On a
+26 MHz board you should instead see one line like:
+
+```
+ov02c10 i2c-OVTI02C1:00: 26000000Hz clock (not 19200000Hz): sensor runs fast; advertising link_freq=541666666 pixel_rate=216666666 and padding vts to ... for ~30fps
+```
+
+If that line is missing `link_freq=`, the installed module predates v0.3.89 —
+re-run `sudo bash install.sh`.
 
 ## Uninstall
 
@@ -96,14 +104,44 @@ This removes the DKMS module and restores the stock kernel driver.
 
 ## How it works
 
-The only change from the stock driver is in the `ov02c10_probe()` function:
+The patched driver makes three changes to the stock one. The last two only
+apply on a 26 MHz board — on a 19.2 MHz board the driver behaves exactly like
+the stock one.
 
-```c
-// Stock driver:
-if (freq != OV02C10_MCLK)  // OV02C10_MCLK = 19200000
+1. **Accept the 26 MHz clock** in `ov02c10_probe()`:
 
-// Patched driver:
-if (freq != OV02C10_MCLK_19_2MHZ && freq != OV02C10_MCLK_26MHZ)
-```
+   ```c
+   // Stock driver:
+   if (freq != OV02C10_MCLK)  // OV02C10_MCLK = 19200000
 
-This is the exact same fix proposed in the upstream kernel mailing list patch.
+   // Patched driver:
+   if (freq != OV02C10_MCLK_19_2MHZ && freq != OV02C10_MCLK_26MHZ)
+   ```
+
+   This is the exact same fix proposed in the upstream kernel mailing list
+   patch. It does **not** re-time the sensor's PLL (nobody has the datasheet),
+   so on a 26 MHz board the whole sensor clock tree runs 26/19.2 ≈ 1.354× fast.
+
+2. **Correct `pixel_rate` and pad the frame** ([#71](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/71)).
+   The driver advertises the real pixel rate (~217 MPix/s instead of 160) so
+   libcamera's AGC computes real exposure times, and pads the frame with
+   vertical blanking so it runs at ~30 fps instead of ~40.7.
+
+3. **Correct the CSI-2 link frequency** ([#123](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/123)).
+   The driver advertises the real link frequency (~542 MHz instead of 400).
+   IPU6 programs its CSI-2 receiver timing from this value — and on Meteor Lake
+   also the PHY frequency band — so the stale 400 MHz value can leave the link
+   unstable. The firmware still declares 400 MHz, so the probe-time firmware
+   check keeps matching 400 MHz.
+
+## Troubleshooting
+
+### `csi2-N error: Frame sync error` on a 26 MHz board
+
+If `dmesg` shows `csi2-4 error: Frame sync error` (or another `csi2-N`) during
+capture, check the `Verify` line above. If it doesn't show `link_freq=`, your
+installed module still reports the stale 400 MHz link frequency — re-run
+`sudo bash install.sh` and reboot. If the line is correct and the errors
+continue, see the Frame sync section of the
+[webcam-fix troubleshooting](../webcam-fix/README.md#intermittent-black-frames--frame-sync-error)
+(IVSC boot race).

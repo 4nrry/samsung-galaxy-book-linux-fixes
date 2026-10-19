@@ -45,8 +45,10 @@ devm_v4l2_sensor_clk_get(struct device *dev, const char *id)
  * This DKMS package widens the clock-acceptance check to allow 26MHz boards
  * (Raptor Lake) but does NOT re-time the PLL — so on those boards the whole
  * sensor clock tree runs 26/19.2 = ~1.354x fast: ~40.7fps instead of 30, and
- * the link_freq/pixel_rate we advertise to libcamera no longer match reality,
- * which makes AGC mis-compute exposure. See issue #71.
+ * the stock link_freq/pixel_rate no longer match reality. init_controls()
+ * scales both by the measured clock: pixel_rate so AGC computes real exposure
+ * times (issue #71), link_freq so IPU6 programs its CSI-2 PHY for the real
+ * link rate (issue #123).
  *
  * These parameters exist to find the correct 26MHz multiplier empirically,
  * without a datasheet. Both default to -1 = "leave the mode's values alone",
@@ -533,6 +535,13 @@ struct ov02c10 {
 
 	/* Actual external clock. 19.2MHz upstream, 26MHz on Raptor Lake. */
 	unsigned long mclk_freq;
+
+	/*
+	 * link_freq_menu_items scaled by mclk_freq. Backs the LINK_FREQ int-menu,
+	 * which v4l2_ctrl_new_int_menu() keeps by pointer, so it has to live as
+	 * long as the control handler — hence here, not on the stack.
+	 */
+	s64 link_freq_real[ARRAY_SIZE(link_freq_menu_items)];
 };
 
 static inline struct ov02c10 *to_ov02c10(struct v4l2_subdev *subdev)
@@ -655,22 +664,29 @@ static int ov02c10_init_controls(struct ov02c10 *ov02c10)
 	const struct ov02c10_mode *mode = &supported_modes[0];
 	u32 vblank_min, vblank_max, vblank_default, vts_def;
 	struct v4l2_fwnode_device_properties props;
-	s64 exposure_max, h_blank, pixel_rate;
-	int ret;
+	s64 exposure_max, h_blank, link_freq, pixel_rate;
+	int ret, i;
 
 	v4l2_ctrl_handler_init(ctrl_hdlr, 12);
+
+	/* See the comment below: the link really runs at mclk/19.2MHz x 400MHz. */
+	for (i = 0; i < ARRAY_SIZE(link_freq_menu_items); i++)
+		ov02c10->link_freq_real[i] =
+			mult_frac(link_freq_menu_items[i], ov02c10->mclk_freq,
+				  OV02C10_MCLK_19_2MHZ);
+	link_freq = ov02c10->link_freq_real[ov02c10->link_freq_index];
 
 	ov02c10->link_freq = v4l2_ctrl_new_int_menu(ctrl_hdlr,
 						    &ov02c10_ctrl_ops,
 						    V4L2_CID_LINK_FREQ,
 						    ov02c10->link_freq_index, 0,
-						    link_freq_menu_items);
+						    ov02c10->link_freq_real);
 	if (ov02c10->link_freq)
 		ov02c10->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	/* MIPI lanes are DDR -> use link-freq * 2 */
-	pixel_rate = div_u64(link_freq_menu_items[ov02c10->link_freq_index] *
-			     2 * ov02c10->mipi_lanes, OV02C10_RGB_DEPTH);
+	pixel_rate = div_u64(link_freq * 2 * ov02c10->mipi_lanes,
+			     OV02C10_RGB_DEPTH);
 
 	/*
 	 * The sensor's register lists — PLL included — were written upstream for
@@ -686,10 +702,16 @@ static int ov02c10_init_controls(struct ov02c10 *ov02c10)
 	 * is undocumented and nobody here has the datasheet, so re-timing it would
 	 * be a guess.
 	 *
-	 * Instead, take the fast clock as a given and correct for it in the two
-	 * places userspace actually cares about:
+	 * Instead, take the fast clock as a given and correct for it in the
+	 * places that read the sensor's timing:
 	 *
-	 *   pixel_rate — tell libcamera the truth (~217MPix/s, not 160), so its
+	 *   link_freq  — tell IPU6 the real CSI-2 link rate (~542MHz, not 400).
+	 *                It programs the receiver's settle timing and, on Meteor
+	 *                Lake's DWC PHY, the PHY frequency band from this; the
+	 *                stale 400MHz band can cause "Frame sync error" (#123).
+	 *                The firmware still declares 400MHz, so check_hwcfg()
+	 *                keeps matching against link_freq_menu_items.
+	 *   pixel_rate — derived from link_freq above, so it tells libcamera the truth (~217MPix/s, not 160), so its
 	 *                line-time model is right and AGC computes real exposure
 	 *                times instead of ones 26% too short.
 	 *   vts_def    — pad the frame with vertical blanking so the frame rate
@@ -697,20 +719,16 @@ static int ov02c10_init_controls(struct ov02c10 *ov02c10)
 	 *                full ~33ms exposure window, so AGC stops running out of
 	 *                integration time and reaching for analog gain in low light.
 	 *
-	 * Both scale by the measured clock, so a 19.2MHz board is bit-for-bit
+	 * All three scale by the measured clock, so a 19.2MHz board is bit-for-bit
 	 * unchanged. (Scaling — rather than hardcoding — is the point: an
 	 * unconditional vts/pixel_rate change would drop 19.2MHz boards to ~22fps.)
 	 */
 	vts_def = ov02c10_vts_def(ov02c10, mode);
-	if (ov02c10->mclk_freq != OV02C10_MCLK_19_2MHZ) {
-		pixel_rate = mult_frac(pixel_rate, ov02c10->mclk_freq,
-				       OV02C10_MCLK_19_2MHZ);
-
+	if (ov02c10->mclk_freq != OV02C10_MCLK_19_2MHZ)
 		dev_info(ov02c10->dev,
-			 "%luHz clock (not %dHz): sensor runs fast; advertising pixel_rate=%lld and padding vts to %u for ~30fps\n",
+			 "%luHz clock (not %dHz): sensor runs fast; advertising link_freq=%lld pixel_rate=%lld and padding vts to %u for ~30fps\n",
 			 ov02c10->mclk_freq, OV02C10_MCLK_19_2MHZ,
-			 pixel_rate, vts_def);
-	}
+			 link_freq, pixel_rate, vts_def);
 
 	ov02c10->pixel_rate = v4l2_ctrl_new_std(ctrl_hdlr, &ov02c10_ctrl_ops,
 						V4L2_CID_PIXEL_RATE, 0,

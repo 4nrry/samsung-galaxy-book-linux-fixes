@@ -441,7 +441,7 @@ sudo reboot
 
 ### Intermittent black frames / "Frame sync error"
 
-If `dmesg` shows `csi2-4 error: Frame sync error`, the CSI-2 link between the sensor and IPU6 is unstable. This is usually caused by the sensor probing before IVSC is ready (the initramfs fix above resolves this). As a workaround, restarting the relay service re-probes the sensor:
+If `dmesg` shows `csi2-4 error: Frame sync error`, the CSI-2 link between the sensor and IPU6 is unstable. This is usually caused by the sensor probing before IVSC is ready (the initramfs fix above resolves this). On 26 MHz boards it can also be an outdated [`ov02c10-26mhz-fix`](../ov02c10-26mhz-fix/) reporting the wrong CSI-2 link frequency — re-run its `install.sh` ([#123](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/123)). As a workaround, restarting the relay service re-probes the sensor:
 
 ```bash
 sudo systemctl restart v4l2-relayd@default
