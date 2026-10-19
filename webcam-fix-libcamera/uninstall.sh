@@ -89,18 +89,50 @@ sudo rm -f /usr/local/bin/camera-relay-gst
 sudo rm -rf /var/cache/camera-relay
 sudo rm -f /etc/modprobe.d/99-camera-relay-loopback.conf
 sudo rm -f /etc/modules-load.d/v4l2loopback.conf
+# Undo install.sh's v4l2-relayd masking (issues #54, #123). install.sh records
+# each unit it masked as "<unit> enabled|disabled" in the list below; unmask
+# every one and re-enable only those that were enabled. The list lives outside
+# /var/cache/camera-relay because that directory is removed before this runs.
+#
+# The bare service falls back to the old guess when the list doesn't name it:
+# installs from before the list existed masked it without recording anything,
+# and a later install skips an already-masked unit rather than record "masked"
+# as its prior state.
+restore_v4l2_relayd_units() {
+    local list="${RELAYD_MASKED_LIST:-/var/lib/camera-relay/v4l2-relayd-masked}"
+    local unit state bare_listed=false
+    if [[ -f "$list" ]]; then
+        while read -r unit state; do
+            [[ -n "$unit" ]] || continue
+            [[ "$unit" == v4l2-relayd.service ]] && bare_listed=true
+            sudo systemctl unmask "$unit" 2>/dev/null || true
+            if [[ "$state" == enabled ]]; then
+                sudo systemctl enable "$unit" 2>/dev/null || true
+                echo "  ✓ Restored (unmasked + re-enabled) $unit"
+            else
+                echo "  ✓ Restored (unmasked) $unit"
+            fi
+        done < "$list"
+        sudo rm -f "$list"
+        sudo rmdir "${list%/*}" 2>/dev/null || true
+    fi
+    $bare_listed && return 0
+    state=$(systemctl is-enabled v4l2-relayd.service 2>/dev/null || true)
+    if [[ "$state" == masked* ]] \
+       || [[ -L "${SYSTEMD_ETC:-/etc/systemd/system}/v4l2-relayd.service" ]]; then
+        sudo systemctl unmask v4l2-relayd.service 2>/dev/null || true
+        sudo systemctl enable v4l2-relayd.service 2>/dev/null || true
+        echo "  ✓ Restored (unmasked + re-enabled) v4l2-relayd.service"
+    fi
+}
+
 # Restore the Intel OEM v4l2-relayd stack if install.sh neutralized it (issue #54)
 if [[ -f /etc/modprobe.d/v4l2loopback.conf.disabled-by-camera-relay ]]; then
     sudo mv -f /etc/modprobe.d/v4l2loopback.conf.disabled-by-camera-relay \
         /etc/modprobe.d/v4l2loopback.conf
     echo "  ✓ Restored Intel OEM /etc/modprobe.d/v4l2loopback.conf"
 fi
-if systemctl is-enabled v4l2-relayd.service 2>/dev/null | grep -q masked \
-   || [[ -L /etc/systemd/system/v4l2-relayd.service ]]; then
-    sudo systemctl unmask v4l2-relayd.service 2>/dev/null || true
-    sudo systemctl enable v4l2-relayd.service 2>/dev/null || true
-    echo "  ✓ Restored (unmasked + re-enabled) v4l2-relayd.service"
-fi
+restore_v4l2_relayd_units
 sudo rm -rf /usr/local/share/camera-relay
 sudo rm -f /usr/share/applications/camera-relay-systray.desktop
 sudo rm -f /etc/xdg/autostart/camera-relay-systray.desktop

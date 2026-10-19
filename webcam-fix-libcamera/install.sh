@@ -1783,6 +1783,56 @@ _relay_home=$(getent passwd "$_relay_user" | cut -d: -f6)
 
 RELAY_DIR="$SCRIPT_DIR/../camera-relay"
 
+# Every v4l2-relayd unit that can grab v4l2loopback, one per line: the bare
+# v4l2-relayd.service if its unit file exists, then each
+# v4l2-relayd@<instance>.service that is loaded (list-units) or enabled (a
+# .wants symlink — an enabled instance is not loaded until it first starts).
+# Intel's IPU6 tutorials enable @intel-ipu through /etc/v4l2-relayd.d/, and our
+# own legacy webcam-fix/ starts @default; masking only the bare service left
+# those running and the relay black. (issue #123)
+#
+# The template v4l2-relayd@.service is never printed. Masking it would block
+# every instance, including one started on purpose after going back to the
+# legacy webcam-fix/.
+#
+# Output is buffered, not piped into `grep -q`: an early grep exit SIGPIPEs the
+# writer, which reads as "not found" under pipefail.
+v4l2_relayd_units() {
+    local wants="${SYSTEMD_ETC:-/etc/systemd/system}" out instances="" f
+    out=$(systemctl list-unit-files 2>/dev/null || true)
+    if grep -q '^v4l2-relayd\.service' <<< "$out"; then
+        echo "v4l2-relayd.service"
+    fi
+    out=$(systemctl list-units --all --plain --no-legend 'v4l2-relayd@*.service' 2>/dev/null || true)
+    instances=$(awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^v4l2-relayd@/) { print $i; break } }' <<< "$out")
+    for f in "$wants"/*.wants/v4l2-relayd@*.service; do
+        if [[ -L "$f" || -e "$f" ]]; then
+            instances+=$'\n'"${f##*/}"
+        fi
+    done
+    awk '/^v4l2-relayd@.+\.service$/' <<< "$instances" | sort -u
+}
+
+# Stop, disable and mask each unit in $1 (one per line), recording
+# "<unit> enabled|disabled" in $RELAYD_MASKED_LIST so uninstall.sh restores
+# exactly what was there. A unit that is already masked is skipped: on a re-run
+# its prior state would be recorded as "masked" and the real one lost.
+mask_v4l2_relayd_units() {
+    local list="${RELAYD_MASKED_LIST:-/var/lib/camera-relay/v4l2-relayd-masked}" unit state
+    while read -r unit; do
+        [[ -n "$unit" ]] || continue
+        state=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+        [[ "$state" == masked* ]] && continue
+        [[ "$state" == enabled ]] || state=disabled
+        sudo systemctl stop "$unit" 2>/dev/null || true
+        sudo systemctl disable "$unit" 2>/dev/null || true
+        sudo systemctl mask "$unit" 2>/dev/null || true
+        sudo install -d "${list%/*}"
+        echo "$unit $state" | sudo tee -a "$list" > /dev/null
+        echo "    ✓ $unit stopped, disabled and masked"
+    done <<< "$1"
+}
+
 if [[ -d "$RELAY_DIR" ]]; then
     # gst-launch-1.0/gst-inspect-1.0 must exist before the probe below, or it
     # exits 127 and misreads as "libcamerasrc missing" (issue #65).
@@ -1873,7 +1923,8 @@ if [[ -d "$RELAY_DIR" ]]; then
     # into it, and the relay shows a black screen. (issue #54)
     # ---------------------------------------------------------------
     OEM_V4L2_CONF="/etc/modprobe.d/v4l2loopback.conf"
-    if systemctl list-unit-files 2>/dev/null | grep -q '^v4l2-relayd\.service' \
+    RELAYD_UNITS=$(v4l2_relayd_units)
+    if [[ -n "$RELAYD_UNITS" ]] \
        || { [[ -f "$OEM_V4L2_CONF" ]] \
             && grep -q 'Intel MIPI Camera' "$OEM_V4L2_CONF" 2>/dev/null \
             && ! grep -q 'Camera Relay' "$OEM_V4L2_CONF" 2>/dev/null; }; then
@@ -1882,14 +1933,12 @@ if [[ -d "$RELAY_DIR" ]]; then
         echo "    breaks the camera relay. Neutralizing it (reversible via"
         echo "    uninstall.sh)."
 
-        # Stop, disable and mask the competing service so it can't
-        # re-load v4l2loopback with its own options or hold the device.
-        if systemctl list-unit-files 2>/dev/null | grep -q '^v4l2-relayd\.service'; then
-            sudo systemctl stop v4l2-relayd.service 2>/dev/null || true
-            sudo systemctl disable v4l2-relayd.service 2>/dev/null || true
-            sudo systemctl mask v4l2-relayd.service 2>/dev/null || true
+        # Stop, disable and mask the competing service and any of its
+        # @instances so none can re-load v4l2loopback with its own options
+        # or hold the device. (issue #123)
+        if [[ -n "$RELAYD_UNITS" ]]; then
+            mask_v4l2_relayd_units "$RELAYD_UNITS"
             sleep 1
-            echo "    ✓ v4l2-relayd.service stopped, disabled and masked"
         fi
 
         # Move the OEM modprobe.d file aside (only if it's the OEM one,

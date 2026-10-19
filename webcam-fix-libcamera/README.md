@@ -575,14 +575,24 @@ Check for it:
 ```bash
 lsmod | grep v4l2loopback
 cat /sys/module/v4l2loopback/parameters/exclusive_caps   # Y = wrong
-systemctl status v4l2-relayd
+systemctl list-units --all 'v4l2-relayd*'
 ```
 
 The installer now detects and **neutralizes** this automatically — it stops,
-disables and masks `v4l2-relayd.service` and moves the OEM
-`/etc/modprobe.d/v4l2loopback.conf` aside (restored by `uninstall.sh`). Just
-re-run `sudo bash install.sh` and reboot. The change is fully reversible:
-`uninstall.sh` restores the OEM file and re-enables the service.
+disables and masks `v4l2-relayd.service` **and** any instance of its template,
+such as `v4l2-relayd@intel-ipu.service` (from Intel's IPU6 setup tutorials) or
+`v4l2-relayd@default.service` (from the legacy `webcam-fix/`), and moves the
+OEM `/etc/modprobe.d/v4l2loopback.conf` aside. Just re-run `./install.sh` and
+reboot. The change is fully reversible: `uninstall.sh` restores the OEM file
+and unmasks exactly the units the installer masked, re-enabling only those
+that were enabled before. The template `v4l2-relayd@.service` itself is left
+alone.
+
+If you came from the legacy `webcam-fix/`, its `v4l2-relayd-watchdog.timer`
+may still be enabled. With `v4l2-relayd@default` masked it does nothing — it
+wakes every 3 minutes only to log "relay not active, skipping" to the journal.
+Disable it by hand:
+`sudo systemctl disable --now v4l2-relayd-watchdog.timer`.
 
 The kernel-side half of the same OEM stack is `intel-ipu6-dkms`, which Ubuntu's
 Additional Drivers panel offers on these machines — see

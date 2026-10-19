@@ -1434,6 +1434,34 @@ cmd_doctor() {
     else
         echo "  device: NONE FOUND — nothing for apps to open"
     fi
+    # v4l2-relayd — the bare service, or an @instance from Intel's IPU6
+    # tutorials or the legacy webcam-fix/ — loads v4l2loopback with its own
+    # options and holds the device. install.sh masks every one it finds; this
+    # catches any enabled since. An enabled instance that hasn't started yet is
+    # not loaded, so the .wants symlinks are read as well as list-units.
+    # (issue #123)
+    local relayd="" unit en ac relayd_hit=false
+    relayd=$(systemctl list-units --all --plain --no-legend \
+        'v4l2-relayd.service' 'v4l2-relayd@*.service' 2>/dev/null || true)
+    for unit in /etc/systemd/system/*.wants/v4l2-relayd*.service; do
+        if [[ -L "$unit" ]]; then
+            relayd+=$'\n'"${unit##*/}"
+        fi
+    done
+    relayd=$(awk '{ for (i = 1; i <= NF; i++) if ($i ~ /^v4l2-relayd(@.+)?\.service$/) { print $i; break } }' \
+        <<< "$relayd" | sort -u)
+    for unit in $relayd; do
+        en=$(systemctl is-enabled "$unit" 2>/dev/null || true)
+        ac=$(systemctl is-active "$unit" 2>/dev/null || true)
+        if [[ "$en" == enabled* || "$ac" == active || "$ac" == activating ]]; then
+            echo "  v4l2-relayd: $unit ${en:-?}/${ac:-?}"
+            relayd_hit=true
+        fi
+    done
+    if $relayd_hit; then
+        echo "  → v4l2-relayd holds or reloads v4l2loopback and conflicts with the"
+        echo "    relay. Re-run the webcam fix's install.sh to mask it."
+    fi
 
     echo
     echo "── Relay ──"
