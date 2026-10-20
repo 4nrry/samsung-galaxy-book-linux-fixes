@@ -590,10 +590,14 @@ int main(int argc, char *argv[])
 						note_usage_event(&ev,
 							&reader_streaming);
 						/*
-						 * Verify via /proc — PipeWire
-						 * briefly opens the device
-						 * during scanning, causing
-						 * false events.
+						 * Let a burst of events
+						 * settle, then decide. On
+						 * 0.13+ the latest STREAMON/
+						 * STREAMOFF alone decides; on
+						 * 0.12.x count_readers()
+						 * confirms via /proc, since
+						 * PipeWire briefly opens the
+						 * device while scanning.
 						 */
 						usleep(100000);
 						drain_usage_events(fd,

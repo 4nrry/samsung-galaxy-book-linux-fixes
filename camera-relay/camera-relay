@@ -272,7 +272,9 @@ list_loopback_holders() {
                 owner=" (camera-relay)"
                 break
             fi
-            ppid=$(awk '/^PPid:/ { print $2 }' "/proc/$ppid/status" 2>/dev/null)
+            # awk exits 2 if the process went away since find saw it;
+            # under set -e that would abort the whole doctor report.
+            ppid=$(awk '/^PPid:/ { print $2 }' "/proc/$ppid/status" 2>/dev/null) || ppid=""
             [[ -z "$ppid" || "$ppid" == "0" ]] && break
         done
         echo "$pid $comm$owner"
