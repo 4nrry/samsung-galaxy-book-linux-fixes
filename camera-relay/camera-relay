@@ -248,6 +248,38 @@ is_running() {
     return 1
 }
 
+# Print one line per process that has $1 open: PID, name, and whether it
+# belongs to the relay. Only the caller's own processes are visible; anything
+# running as another user (a root daemon) needs root to show up here.
+list_loopback_holders() {
+    local dev=$1 relay_pid="" fdpath pid comm ppid owner seen=" " found=0
+    read -r relay_pid 2>/dev/null < "$PID_FILE" || true
+    while IFS= read -r fdpath; do
+        pid=${fdpath#/proc/}
+        pid=${pid%%/*}
+        [[ "$seen" == *" $pid "* ]] && continue
+        seen+="$pid "
+        # Gone already (e.g. find itself, holding an inherited fd).
+        comm=""
+        read -r comm 2>/dev/null < "/proc/$pid/comm" || continue
+        found=1
+        # The relay is the bash script in PID_FILE; the monitor is its
+        # child and the gst pipeline the monitor's child.
+        owner=""
+        ppid=$pid
+        for _ in 1 2 3; do
+            if [[ -n "$relay_pid" && "$ppid" == "$relay_pid" ]]; then
+                owner=" (camera-relay)"
+                break
+            fi
+            ppid=$(awk '/^PPid:/ { print $2 }' "/proc/$ppid/status" 2>/dev/null)
+            [[ -z "$ppid" || "$ppid" == "0" ]] && break
+        done
+        echo "$pid $comm$owner"
+    done < <(find /proc/[0-9]*/fd -maxdepth 1 -lname "$dev" 2>/dev/null)
+    (( found )) || echo "(no process of $(id -un) has it open)"
+}
+
 is_persistent() {
     systemctl --user is-enabled "$SERVICE_NAME" &>/dev/null 2>&1
 }
@@ -1427,6 +1459,12 @@ cmd_doctor() {
     local dev=""
     if dev=$(detect_loopback_device 2>/dev/null); then
         echo "  device: $dev ($(cat "/sys/class/video4linux/$(basename "$dev")/name" 2>/dev/null || echo '?'))"
+        # Who has it open. On 0.13+ an open fd alone no longer keeps the
+        # relay streaming, but a holder that never lets go (issue #118:
+        # PipeWire's mirror node after a failed start) is still worth
+        # seeing at a glance.
+        echo "  open by:"
+        list_loopback_holders "$dev" | sed 's/^/    /'
         if command -v v4l2-ctl &>/dev/null; then
             echo "  current format:"
             { v4l2-ctl -d "$dev" -V 2>&1 | sed 's/^/    /'; } || true

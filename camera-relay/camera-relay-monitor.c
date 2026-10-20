@@ -278,6 +278,28 @@ static void drain_usage_events(int fd, int *streaming)
 	}
 }
 
+/*
+ * How many readers want frames right now.
+ *
+ * With the 0.13+ usage event subscribed, `streaming` is the authority: it is
+ * set on a reader's STREAMON and cleared on its STREAMOFF, so it counts
+ * exactly the readers that are consuming frames. An fd that is merely open —
+ * PipeWire's mirror node left holding the device after a failed start, or a
+ * scanner probing formats — must not start the pipeline or keep it alive
+ * (issue #118). PipeWire is not special-cased: when a browser really uses the
+ * camera through it, PipeWire issues STREAMON like any other reader.
+ *
+ * Without that payload (0.12.x, or no event support) there is nothing to go
+ * on but who has the device open, so the /proc scan stays as before.
+ */
+static int count_readers(int authoritative, int streaming, dev_t dev_id,
+			 pid_t our_pid, pid_t child_pid)
+{
+	if (authoritative)
+		return streaming;
+	return count_other_openers(dev_id, our_pid, child_pid) + streaming;
+}
+
 /* Read exactly n bytes from fd. Returns n on success, <n on EOF/error.
  * Uses a 100ms poll timeout to pump black frames to out_fd if the pipe
  * is silent (e.g. during pipeline startup). */
@@ -476,8 +498,15 @@ int main(int argc, char *argv[])
 	/* Try event-based client detection */
 	__u32 event_type = try_subscribe_events(fd);
 	int use_events = (event_type != 0);
+	/* Only the 0.13+ event says whether a reader is streaming; see
+	 * count_readers(). */
+	int usage_authoritative = (event_type == V4L2_EVENT_CLIENT_USAGE_NEW);
 
-	if (use_events)
+	if (usage_authoritative)
+		fprintf(stderr,
+			"[monitor] Using usage events (STREAMON/STREAMOFF"
+			" decide)\n");
+	else if (use_events)
 		fprintf(stderr,
 			"[monitor] Using events + /proc fallback\n");
 	else
@@ -494,14 +523,16 @@ int main(int argc, char *argv[])
 	 *
 	 * IDLE: write black frames at ~1fps, watch for client connections.
 	 *       Writer fd is always held — ready_for_capture never drops.
-	 *       Uses v4l2loopback events when available (zero CPU), with
-	 *       /proc verification to filter PipeWire false starts.
-	 *       Falls back to /proc polling if no event support.
+	 *       Uses v4l2loopback events when available (zero CPU). On
+	 *       0.13+ a reader's STREAMON/STREAMOFF decides; on 0.12.x the
+	 *       event only wakes us and /proc decides. Falls back to /proc
+	 *       polling if no event support. See count_readers().
 	 *
 	 * RELAY: pipeline subprocess is running, outputting frames to a
 	 *        pipe. Read frames from pipe, write to device. Black
 	 *        frames are written during pipeline startup (before first
-	 *        real frame arrives). Monitor /proc for client disconnect.
+	 *        real frame arrives). Stop once count_readers() has been
+	 *        zero for a few seconds.
 	 *
 	 * After each pipeline stop, the device fd is closed and re-opened
 	 * to reset v4l2loopback's event queue (0.12.7 events break
@@ -568,18 +599,18 @@ int main(int argc, char *argv[])
 						drain_usage_events(fd,
 							&reader_streaming);
 						int clients =
-							count_other_openers(
+							count_readers(
+							usage_authoritative,
+							reader_streaming,
 							dev_stat.st_rdev,
 							our_pid, 0);
 						fprintf(stderr,
 							"[monitor] Event"
-							" fired, /proc"
-							" clients=%d"
+							" fired, readers=%d"
 							" streaming=%d\n",
 							clients,
 							reader_streaming);
-						if (clients > 0 ||
-						    reader_streaming)
+						if (clients > 0)
 							client_detected = 1;
 					}
 					idle_polls = 0;
@@ -590,15 +621,16 @@ int main(int argc, char *argv[])
 					 * after fd re-open on some versions.
 					 */
 					idle_polls++;
-					int clients = count_other_openers(
+					int clients = count_readers(
+						usage_authoritative,
+						reader_streaming,
 						dev_stat.st_rdev,
 						our_pid, 0);
-					if (clients > 0 ||
-					    reader_streaming) {
+					if (clients > 0) {
 						fprintf(stderr,
-							"[monitor] /proc"
+							"[monitor] Poll"
 							" fallback:"
-							" clients=%d"
+							" readers=%d"
 							" streaming=%d\n",
 							clients,
 							reader_streaming);
@@ -680,9 +712,11 @@ int main(int argc, char *argv[])
 				if (use_events)
 					drain_usage_events(fd,
 						&reader_streaming);
-				int clients = count_other_openers(
+				int clients = count_readers(
+					usage_authoritative,
+					reader_streaming,
 					dev_stat.st_rdev, our_pid,
-					child_pid) + reader_streaming;
+					child_pid);
 
 				if (clients > 0)
 					had_clients = 1;
@@ -705,12 +739,15 @@ int main(int argc, char *argv[])
 			}
 
 			if (need_stop) {
-				int clients = count_other_openers(
+				int readers = count_readers(
+					usage_authoritative,
+					reader_streaming,
 					dev_stat.st_rdev, our_pid,
 					child_pid);
 				fprintf(stderr,
 					"[monitor] Stopping pipeline"
-					" (clients=%d)\n", clients);
+					" (readers=%d streaming=%d)\n",
+					readers, reader_streaming);
 
 				stop_pipeline(child_pid, pipe_fd);
 				relay_active = 0;
@@ -745,6 +782,9 @@ int main(int argc, char *argv[])
 					reader_streaming = 0;
 					event_type =
 						try_subscribe_events(fd);
+					usage_authoritative =
+						(event_type ==
+						 V4L2_EVENT_CLIENT_USAGE_NEW);
 					if (event_type == 0) {
 						fprintf(stderr,
 							"[monitor] "
@@ -787,9 +827,10 @@ int main(int argc, char *argv[])
 				 * failing rapidly (e.g. syntax error).
 				 */
 				rapid_fails++;
-				int remaining = count_other_openers(
-					dev_stat.st_rdev, our_pid, 0) +
-					reader_streaming;
+				int remaining = count_readers(
+					usage_authoritative,
+					reader_streaming,
+					dev_stat.st_rdev, our_pid, 0);
 				if (remaining > 0 && rapid_fails < 3) {
 					fprintf(stderr,
 						"[monitor] %d client(s)"
