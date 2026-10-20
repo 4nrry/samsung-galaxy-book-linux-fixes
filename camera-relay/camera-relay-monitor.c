@@ -739,12 +739,15 @@ int main(int argc, char *argv[])
 			}
 
 			if (need_stop) {
-				int clients = count_other_openers(
+				int readers = count_readers(
+					usage_authoritative,
+					reader_streaming,
 					dev_stat.st_rdev, our_pid,
 					child_pid);
 				fprintf(stderr,
 					"[monitor] Stopping pipeline"
-					" (clients=%d)\n", clients);
+					" (readers=%d streaming=%d)\n",
+					readers, reader_streaming);
 
 				stop_pipeline(child_pid, pipe_fd);
 				relay_active = 0;
