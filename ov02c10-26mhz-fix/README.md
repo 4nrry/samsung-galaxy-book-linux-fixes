@@ -138,10 +138,19 @@ the stock one.
 
 ### `csi2-N error: Frame sync error` on a 26 MHz board
 
-If `dmesg` shows `csi2-4 error: Frame sync error` (or another `csi2-N`) during
-capture, check the `Verify` line above. If it doesn't show `link_freq=`, your
-installed module still reports the stale 400 MHz link frequency — re-run
-`sudo bash install.sh` and reboot. If the line is correct and the errors
-continue, see the Frame sync section of the
+A single `Frame sync error` logged once each time the stream starts — about
+250-300 ms after `camera-relay` logs `Client connected` — is normal and
+harmless. It was measured on an NP960XGL-XG1BR with both the old 400 MHz and
+the corrected ~542 MHz link frequency, with none during streaming and a
+correct image at 30 fps
+([#123](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/123)).
+Only errors that keep appearing while the camera is streaming need the steps
+below.
+
+If `dmesg` keeps showing `csi2-4 error: Frame sync error` (or another
+`csi2-N`) during capture, check the `Verify` line above. If it doesn't show
+`link_freq=`, your installed module still reports the stale 400 MHz link
+frequency — re-run `sudo bash install.sh` and reboot. If the line is correct
+and the errors continue, see the Frame sync section of the
 [webcam-fix troubleshooting](../webcam-fix/README.md#intermittent-black-frames--frame-sync-error)
 (IVSC boot race).
