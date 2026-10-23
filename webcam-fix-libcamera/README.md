@@ -434,6 +434,34 @@ So on Fedora: delete the stale PermissionStore entry and leave the pref **on**. 
 stale denial for a camera that cannot start at all. Thanks to
 [@david-bartlett](https://github.com/david-bartlett) ([#37](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/37)).
 
+### Microsoft Teams (teams-for-linux)
+
+If you are using the `teams-for-linux` Snap, it needs to be configured to use the PipeWire camera stack.
+
+For Snap installations, the config file is located at `~/snap/teams-for-linux/current/.config/teams-for-linux/config.json`. (For deb/rpm/AppImage builds, it is `~/.config/teams-for-linux/config.json`.)
+
+Run this command to merge the required camera flags into your existing configuration safely (it keeps all your other settings):
+
+```bash
+f=~/snap/teams-for-linux/current/.config/teams-for-linux/config.json
+mkdir -p "$(dirname "$f")"; [ -s "$f" ] || echo '{}' > "$f"
+jq '.electronCLIFlags = [(.electronCLIFlags // [])[] | select((type == "array" and .[0] == "enable-features") | not)] + [["enable-features", "WebRtcPipeWireCamera,WebRTCPipeWireCapturer"]]' \
+    "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+
+*Note: If you already had other features listed in your `enable-features` array, you must add them to the list in the command above (separated by commas) so they are not lost.*
+
+Fully quit Teams and relaunch it. The camera should now appear in Settings → Devices.
+
+### Snap browsers don't see the camera
+
+Snap-confined browsers (such as Chromium) usually auto-connect to the camera interface. If the camera does not appear in the browser, you can check the connection status:
+
+    snap connections chromium | grep camera
+
+If the camera line shows `-` in the **Slot** column (or no camera line at all), connect it manually:
+
+    sudo snap connect chromium:camera
+
 ### Chromium can't use the V4L2 relay
 
 Chrome, Chromium, Brave, Edge and every Electron app filter the camera relay out
@@ -808,38 +836,4 @@ There is an older webcam fix in [`webcam-fix/`](../webcam-fix/) that uses Intel'
 - [Speaker fix (Galaxy Book4/5)](../speaker-fix/) -- MAX98390 HDA driver (DKMS)
 - [Webcam fix -- Galaxy Book5 / Lunar Lake](../webcam-fix-book5/) -- IPU7 + libcamera
 - [Webcam fix -- Legacy](../webcam-fix/) -- IPU6 / icamerasrc (not recommended)
-## Snap Browsers
 
-Snap-confined browsers (such as Chromium) may occasionally lose access to the camera interface. If the camera does not appear in the browser, check the connection status:
-
-    snap connections chromium | grep camera
-
-If the output shows a `-` in the Notes column, connect it manually:
-
-    sudo snap connect chromium:camera
-
-*Note: Firefox and Brave usually auto-connect and work out of the box.*
-
-## Teams for Linux
-
-If you are using the `teams-for-linux` Snap, it needs to be configured to use the PipeWire camera stack.
-
-Create or edit the config file:
-
-    mkdir -p ~/snap/teams-for-linux/current/.config/teams-for-linux
-    nano ~/snap/teams-for-linux/current/.config/teams-for-linux/config.json
-
-Merge the following flags into the `electronCLIFlags` array (if you already have settings there, use `jq` to merge them rather than overwriting the file):
-
-    {
-        "electronCLIFlags": [
-            ["enable-features", "WebRtcPipeWireCamera,WebRTCPipeWireCapturer"]
-        ]
-    }
-
-Fully quit Teams and relaunch it. The camera should now appear in Settings → Devices.
-
-If the PipeWire camera still does not appear, you can fall back to exposing the camera via V4L2 using `libcamerify`:
-
-    sudo apt install libcamera-tools
-    libcamerify snap run teams-for-linux
