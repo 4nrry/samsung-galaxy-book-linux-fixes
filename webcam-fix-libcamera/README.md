@@ -447,6 +447,7 @@ f=~/snap/teams-for-linux/current/.config/teams-for-linux/config.json
 mkdir -p "$(dirname "$f")"; [ -s "$f" ] || echo '{}' > "$f"
 jq '.electronCLIFlags = [(.electronCLIFlags // [])[] | select((type == "array" and .[0] == "enable-features") | not)] + [["enable-features", "WebRtcPipeWireCamera,WebRTCPipeWireCapturer"]]' \
     "$f" > "$f.tmp" && mv "$f.tmp" "$f"
+```
 
 *Note: If you already had other features listed in your `enable-features` array, you must add them to the list in the command above (separated by commas) so they are not lost.*
 
