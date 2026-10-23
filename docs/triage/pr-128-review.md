@@ -49,6 +49,16 @@ NP960XGL-XG1US). These live in GNVS at `0x681D7000`, and `/dev/mem` is blocked b
 Secure Boot lockdown. So Andy's own module is **unknown**. If the author has an easy
 check (Windows Device Manager, the INF), add it to the README section.
 
+**Author's answer (2026-10-23, comment 6375974061):** the name comes from the Windows
+DriverStore. `ov02c10.inf_amd64_*` binds `ACPI\OVTI02C1` to `OV02C10_KBFC645_MTL.aiqb`.
+They don't know whether every NP960XGL uses it, because Samsung may multi-source the
+module. Their suggested Linux check (DMI `product_name` = `960XGL` + `OVTI02C1` HID)
+only confirms the model + sensor, **not** the module. Only the Windows DriverStore
+check is definitive. They are keeping the PR a draft to test more lighting and post
+comparison screenshots. **Nothing to answer now.** When it's un-drafted, word the
+README as "Book4 Ultra / OV02C10, module confirmable only from Windows" and add the
+DriverStore check.
+
 ## Follow-ups to apply on `main` after the merge (promised in the review)
 
 1. **The section is in the wrong place.** It was inserted between "Desaturated,
