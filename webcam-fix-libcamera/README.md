@@ -808,3 +808,38 @@ There is an older webcam fix in [`webcam-fix/`](../webcam-fix/) that uses Intel'
 - [Speaker fix (Galaxy Book4/5)](../speaker-fix/) -- MAX98390 HDA driver (DKMS)
 - [Webcam fix -- Galaxy Book5 / Lunar Lake](../webcam-fix-book5/) -- IPU7 + libcamera
 - [Webcam fix -- Legacy](../webcam-fix/) -- IPU6 / icamerasrc (not recommended)
+## Snap Browsers
+
+Snap-confined browsers (such as Chromium) may occasionally lose access to the camera interface. If the camera does not appear in the browser, check the connection status:
+
+    snap connections chromium | grep camera
+
+If the output shows a `-` in the Notes column, connect it manually:
+
+    sudo snap connect chromium:camera
+
+*Note: Firefox and Brave usually auto-connect and work out of the box.*
+
+## Teams for Linux
+
+If you are using the `teams-for-linux` Snap, it needs to be configured to use the PipeWire camera stack.
+
+Create or edit the config file:
+
+    mkdir -p ~/snap/teams-for-linux/current/.config/teams-for-linux
+    nano ~/snap/teams-for-linux/current/.config/teams-for-linux/config.json
+
+Merge the following flags into the `electronCLIFlags` array (if you already have settings there, use `jq` to merge them rather than overwriting the file):
+
+    {
+        "electronCLIFlags": [
+            ["enable-features", "WebRtcPipeWireCamera,WebRTCPipeWireCapturer"]
+        ]
+    }
+
+Fully quit Teams and relaunch it. The camera should now appear in Settings → Devices.
+
+If the PipeWire camera still does not appear, you can fall back to exposing the camera via V4L2 using `libcamerify`:
+
+    sudo apt install libcamera-tools
+    libcamerify snap run teams-for-linux
