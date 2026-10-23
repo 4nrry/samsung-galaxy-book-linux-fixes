@@ -1,11 +1,20 @@
 # PR #127 review — "docs: Add Snap browser and Teams for Linux camera notes"
 
-VERDICT: **CHANGES REQUESTED** on `bfbde1b`. No merge, no release.
+VERDICT: **MERGED** 2026-10-23 as `4894977` (head `7cf9687`). No release (README only).
 
-**Status (2026-10-23):** REQUEST_CHANGES review posted on head `bfbde1b` using
-the comment below, unchanged:
-<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/127#pullrequestreview-5631375717>
-(review 5631375717). Awaiting @revolte. The latest release is still v0.3.91.
+**Status (2026-10-23, round 2):** @revolte pushed `4a64548`, which addressed all six
+findings below. It had one new defect: the ```` ```bash ```` fence around the `jq`
+command was never closed, so GitHub rendered lines 446–481 (the note, the whole
+"Snap browsers" section and the start of "Chromium can't use the V4L2 relay")
+as one code block. Andy pushed a one-line fix to the contributor's branch
+(`7cf9687`, maintainerCanModify) after checking it with the `gh api /markdown`
+render. Approve review 5634194107 thanked revolte and told them about the edit.
+Merged as a merge commit, which closed the PR. Round 1 CHANGES_REQUESTED review
+5631375717 is kept below.
+
+**Still TODO on `main` (v0.3.92):** correct the "PipeWire camera isn't wired
+into Electron" wording (README L174–176 and L544–548, `install.sh` L2333–2334)
+for teams-for-linux. See the key finding below.
 
 Reviewed: 2026-10-23. Author: **@revolte**. This is the docs-only replacement for
 #126, which they closed. Head `bfbde1b`, 1 commit, `MERGEABLE`/`CLEAN`, no CI.
