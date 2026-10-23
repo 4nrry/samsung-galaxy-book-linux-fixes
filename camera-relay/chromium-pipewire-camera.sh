@@ -118,10 +118,10 @@ resolve_target_user() {
 #              does work — just not through this file.
 #   Electron — Slack, Discord, VS Code and friends keep a Local State too, but
 #              they never process about:flags, so an entry there is dead weight
-#              in someone else's config file. The command-line switch does not
-#              help them either: PipeWire *camera* support is not wired into
-#              Electron, only the screen-share capturer. electron#45058 asked
-#              for it and was closed unimplemented.
+#              in someone else's config file. The switch itself does work for
+#              them (electron#45058), passed at launch or through the app's own
+#              config (teams-for-linux: electronCLIFlags), just not through
+#              this file.
 #
 # The feature name is `WebRtcPipeWireCamera` — BASE_FEATURE(kWebRtcPipeWireCamera)
 # in media/capture/capture_switches.cc. It is case-sensitive, and

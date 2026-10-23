@@ -184,6 +184,7 @@ configuration — see [Chromium can't use the V4L2 relay](#chromium-cant-use-the
 | **Firefox** | Working | Reads the V4L2 relay directly on Ubuntu — no flags. On Fedora the PipeWire pref is required ([#37](https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/issues/37)) |
 | **Chrome / Chromium / Brave** | Working | **Only** via PipeWire — the installer enables the flag for you |
 | **Edge** | Works, but not automatically | Same V4L2 filter as Chrome. `edge://flags` does not expose the entry, so the installer cannot set it — launch with `--enable-features=WebRtcPipeWireCamera` instead |
+| **Electron apps** (Teams, Slack, Discord) | Works, but not automatically | Same as Edge: the installer cannot set it — launch with `--enable-features=WebRtcPipeWireCamera`. teams-for-linux takes it from its config file ([how](../webcam-fix-libcamera/README.md#microsoft-teams-teams-for-linux)) |
 | **Zoom / OBS / VLC** | Working | Uses V4L2 camera relay |
 | **Cheese** | Crashes | Use standalone fix: `cd ../camera-relay && ./cheese-fix.sh` |
 
@@ -379,11 +380,21 @@ Two things this does **not** fix:
   microsoft-edge --enable-features=WebRtcPipeWireCamera
   ```
 
-- **Electron apps** (Slack, Discord, Teams, VS Code) are a different case: they
-  hit the same V4L2 filter, but the switch does **not** help, because PipeWire
-  *camera* support is not wired into Electron — only the screen-share capturer
-  is ([electron#45058](https://github.com/electron/electron/issues/45058) is a
-  closed, unimplemented request). Nothing in this repo fixes them today.
+- **Electron apps** (Slack, Discord, Teams, VS Code) hit the same V4L2 filter
+  and, like Edge, never read `chrome://flags`, so the installer leaves them
+  alone. The switch itself works for them
+  ([electron#45058](https://github.com/electron/electron/issues/45058)) when it
+  is passed at launch — on the command line or the `Exec=` line of the app's
+  `.desktop` file:
+
+  ```bash
+  slack --enable-features=WebRtcPipeWireCamera
+  ```
+
+  So far this is confirmed with teams-for-linux, which takes the switch from its
+  own config file instead: see [Microsoft Teams (teams-for-linux)](../webcam-fix-libcamera/README.md#microsoft-teams-teams-for-linux).
+  The relay then shows up in the app as **Camera Relay (V4L2)**, the name
+  WirePlumber gives it in PipeWire.
 - **libcamera 0.2.0** (Ubuntu 24.04 Noble / Zorin) has no IPU6/IPU7 support, so
   the PipeWire path produces no frames either. Check with
   `pkg-config --modversion libcamera`; the script refuses below 0.7, and that is

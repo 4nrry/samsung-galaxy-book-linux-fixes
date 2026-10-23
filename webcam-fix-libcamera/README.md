@@ -154,6 +154,7 @@ configuration — see [Chromium can't use the V4L2 relay](#chromium-cant-use-the
 | **Chromium** | Working | Same as Chrome |
 | **Brave** | Working | Same as Chrome |
 | **Edge** | Works, but not automatically | Same V4L2 filter as Chrome. `edge://flags` does not expose the entry, so the installer cannot set it — launch with `--enable-features=WebRtcPipeWireCamera` instead |
+| **Electron apps** (Teams, Slack, Discord) | Works, but not automatically | Same as Edge: the installer cannot set it — launch with `--enable-features=WebRtcPipeWireCamera`. teams-for-linux takes it from its config file ([how](#microsoft-teams-teams-for-linux)) |
 | **Zoom** | Working | Uses V4L2 camera relay |
 | **OBS Studio** | Working | Uses V4L2 camera relay |
 | **VLC** | Working | Uses V4L2 camera relay |
@@ -172,10 +173,13 @@ browsers, not optional** — with one version-specific exception. Check with
   libcamera version instead.
 
 Electron apps (Slack, Teams, Discord, VS Code) use the same Chromium capture
-code and are filtered out the same way, but **the command-line switch does not
-rescue them** — PipeWire *camera* support is not wired into Electron at all. See
+code and are filtered out the same way. Like Edge, they ignore `chrome://flags`,
+so the installer cannot turn the switch on for them, but **the command-line
+switch does rescue them**: launch the app with
+`--enable-features=WebRtcPipeWireCamera`. For teams-for-linux, set it in its
+config file instead — see [Microsoft Teams (teams-for-linux)](#microsoft-teams-teams-for-linux). See
 [Chromium can't use the V4L2 relay](#chromium-cant-use-the-v4l2-relay) for the
-detail, and for Edge, which the switch *does* fix.
+detail.
 
 Quick test:
 
@@ -570,11 +574,21 @@ Two things this does **not** fix:
   microsoft-edge --enable-features=WebRtcPipeWireCamera
   ```
 
-- **Electron apps** (Slack, Discord, Teams, VS Code) are a different case: they
-  hit the same V4L2 filter, but the switch does **not** help, because PipeWire
-  *camera* support is not wired into Electron — only the screen-share capturer
-  is ([electron#45058](https://github.com/electron/electron/issues/45058) is a
-  closed, unimplemented request). Nothing in this repo fixes them today.
+- **Electron apps** (Slack, Discord, Teams, VS Code) hit the same V4L2 filter
+  and, like Edge, never read `chrome://flags`, so the installer leaves them
+  alone. The switch itself works for them
+  ([electron#45058](https://github.com/electron/electron/issues/45058)) when it
+  is passed at launch — on the command line or the `Exec=` line of the app's
+  `.desktop` file:
+
+  ```bash
+  slack --enable-features=WebRtcPipeWireCamera
+  ```
+
+  So far this is confirmed with teams-for-linux, which takes the switch from its
+  own config file instead: see [Microsoft Teams (teams-for-linux)](#microsoft-teams-teams-for-linux).
+  The relay then shows up in the app as **Camera Relay (V4L2)**, the name
+  WirePlumber gives it in PipeWire.
 - **libcamera 0.2.0** (Ubuntu 24.04 Noble / Zorin) has no IPU6 support, so the
   PipeWire path produces no frames either. The script refuses to enable the flag
   below 0.7 for that reason.
