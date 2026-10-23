@@ -2,8 +2,10 @@
 
 VERDICT: **CHANGES REQUESTED** on `ce3af3f` (1 blocker). No merge, no release.
 
-**Status (2026-10-22):** REQUEST_CHANGES review drafted below, not posted yet.
-The latest release is still v0.3.91. Nothing from this PR ships as it stands.
+**Status (2026-10-22):** REQUEST_CHANGES review posted on head `ce3af3f` using
+the comment below, unchanged:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/126#pullrequestreview-5623340112>
+(review 5623340112). Awaiting @revolte. The latest release is still v0.3.91. Nothing from this PR ships as it stands.
 v0.3.92 would only follow a separate change on `main`, for example the
 Electron/Teams wording or snap checks in `camera-relay doctor`, if @revolte's
 answers show a real gap.
@@ -157,4 +159,13 @@ very unlikely, so it isn't worth the noise.
 
 ## Outcome
 
-Pending: review not posted yet.
+**Outcome (2026-10-22):** Head re-confirmed as `ce3af3f`, `OPEN`, with no prior
+reviews, just before posting. The REQUEST_CHANGES review was posted with the
+comment above, unchanged, as review 5623340112 (2026-10-23T02:50:21Z UTC):
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/126#pullrequestreview-5623340112>.
+Not merged, and no release cut (latest is still v0.3.91).
+
+Next, depending on @revolte's answers: if Teams really gets the camera through
+PipeWire, correct `install.sh:2333-2334` and `README.md:174-176`/`:546`. If
+the firmware race and snap connects are real gaps, add snap `camera` interface
+checks to `camera-relay doctor` and the README. That would ship as v0.3.92.
