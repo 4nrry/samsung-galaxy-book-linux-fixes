@@ -25,6 +25,14 @@
     then pkgs.llvmPackages.clang-unwrapped
     else pkgs.gcc;
   clangMakeFlags = lib.optionalString kernelUsesClang (lib.escapeShellArgs kernel.commonMakeFlags);
+  # modules_install, not a bare copy: nixpkgs overrides Kbuild's cmd_sign so
+  # the install step writes a <module>.ko.cer beside each module, and newer
+  # aggregateModules fails the system build when one is missing (#130).
+  # Nixpkgs without that flag installs exactly as before.
+  installMakeFlags =
+    if kernelUsesClang
+    then clangMakeFlags
+    else lib.escapeShellArgs (builtins.filter (lib.hasPrefix "cmd_sign=") (kernel.commonMakeFlags or []));
 in {
   options.hardware.samsungGalaxyBook.ipuBridgeFix = {
     enable = lib.mkEnableOption "out-of-tree ipu-bridge override reporting sensor rotation";
@@ -41,7 +49,8 @@ in {
           src = ../webcam-fix-book5/ipu-bridge-fix;
 
           nativeBuildInputs =
-            [kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl]
+            kernel.moduleBuildDependencies
+            ++ [kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl]
             ++ lib.optionals kernelUsesClang [pkgs.llvmPackages.lld];
 
           buildPhase = ''
@@ -50,7 +59,9 @@ in {
           '';
 
           installPhase = ''
-            install -Dm644 ipu-bridge.ko $out/lib/modules/${kernelPackages.kernel.modDirVersion}/extra/ipu-bridge.ko
+            make -C ${kernelPackages.kernel.dev}/lib/modules/${kernelPackages.kernel.modDirVersion}/build \
+              M=$PWD modules_install INSTALL_MOD_PATH=$out INSTALL_MOD_DIR=extra \
+              DEPMOD=true ${installMakeFlags}
           '';
         })
       ];

@@ -179,7 +179,7 @@ After a rebuild and reboot, confirm the *patched* driver is the one that loaded:
 
 ```bash
 modinfo ov02c10 | grep -E 'filename|description'
-# filename:    /run/current-system/kernel-modules/lib/modules/<ver>/updates/ov02c10.ko
+# filename:    /run/current-system/kernel-modules/lib/modules/<ver>/updates/ov02c10.ko.xz
 # description: OmniVision OV02C10 sensor driver (patched: 26 MHz clock support)
 ```
 

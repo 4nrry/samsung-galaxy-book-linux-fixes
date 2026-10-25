@@ -16,6 +16,14 @@
   # own nixpkgs (CachyOS) are built with a different clang/lld than the system
   # one, and objtool rejects objects from a mismatched toolchain.
   clangMakeFlags = lib.optionalString kernelUsesClang (lib.escapeShellArgs kernel.commonMakeFlags);
+  # modules_install, not a bare copy: nixpkgs overrides Kbuild's cmd_sign so
+  # the install step writes a <module>.ko.cer beside each module, and newer
+  # aggregateModules fails the system build when one is missing (#130).
+  # Nixpkgs without that flag installs exactly as before.
+  installMakeFlags =
+    if kernelUsesClang
+    then clangMakeFlags
+    else lib.escapeShellArgs (builtins.filter (lib.hasPrefix "cmd_sign=") (kernel.commonMakeFlags or []));
 
   # The patches below are cut against this release and do not apply to
   # 0.7.0, 0.7.1 or later versions, which rework the simple IPA.
@@ -112,7 +120,8 @@
     src = visionDriversSrc;
 
     nativeBuildInputs =
-      [kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl]
+      kernel.moduleBuildDependencies
+      ++ [kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl]
       ++ lib.optionals kernelUsesClang [pkgs.llvmPackages.lld];
 
     buildPhase = ''
@@ -121,7 +130,9 @@
     '';
 
     installPhase = ''
-      install -Dm644 intel_cvs.ko $out/lib/modules/${kernelPackages.kernel.modDirVersion}/extra/intel_cvs.ko
+      make -C ${kernelPackages.kernel.dev}/lib/modules/${kernelPackages.kernel.modDirVersion}/build \
+        M=$PWD modules_install INSTALL_MOD_PATH=$out INSTALL_MOD_DIR=extra \
+        DEPMOD=true ${installMakeFlags}
     '';
 
     meta = with lib; {
@@ -138,7 +149,8 @@
     src = ../webcam-fix-book5/ipu-bridge-fix;
 
     nativeBuildInputs =
-      [kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl]
+      kernel.moduleBuildDependencies
+      ++ [kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl]
       ++ lib.optionals kernelUsesClang [pkgs.llvmPackages.lld];
 
     buildPhase = ''
@@ -147,7 +159,9 @@
     '';
 
     installPhase = ''
-      install -Dm644 ipu-bridge.ko $out/lib/modules/${kernelPackages.kernel.modDirVersion}/extra/ipu-bridge.ko
+      make -C ${kernelPackages.kernel.dev}/lib/modules/${kernelPackages.kernel.modDirVersion}/build \
+        M=$PWD modules_install INSTALL_MOD_PATH=$out INSTALL_MOD_DIR=extra \
+        DEPMOD=true ${installMakeFlags}
     '';
 
     meta = with lib; {
@@ -164,7 +178,8 @@
     src = ../webcam-fix-book5/ov02e10-lownoise-fix;
 
     nativeBuildInputs =
-      [kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl]
+      kernel.moduleBuildDependencies
+      ++ [kernelPackages.kernel.dev cc pkgs.gnumake pkgs.perl]
       ++ lib.optionals kernelUsesClang [pkgs.llvmPackages.lld];
 
     buildPhase = ''
@@ -173,7 +188,9 @@
     '';
 
     installPhase = ''
-      install -Dm644 ov02e10.ko $out/lib/modules/${kernelPackages.kernel.modDirVersion}/extra/ov02e10.ko
+      make -C ${kernelPackages.kernel.dev}/lib/modules/${kernelPackages.kernel.modDirVersion}/build \
+        M=$PWD modules_install INSTALL_MOD_PATH=$out INSTALL_MOD_DIR=extra \
+        DEPMOD=true ${installMakeFlags}
     '';
 
     meta = with lib; {

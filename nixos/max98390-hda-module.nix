@@ -22,6 +22,12 @@ let
     rev = githubRev;
     hash = githubHash;
   };
+  # modules_install, not a bare copy: nixpkgs overrides Kbuild's cmd_sign so
+  # the install step writes a <module>.ko.cer beside each module, and newer
+  # aggregateModules fails the system build when one is missing (#130).
+  # Nixpkgs without that flag installs exactly as before.
+  signMakeFlags = lib.escapeShellArgs
+    (builtins.filter (lib.hasPrefix "cmd_sign=") (kernel.commonMakeFlags or [ ]));
 in
 
 stdenvNoCC.mkDerivation {
@@ -46,8 +52,8 @@ stdenvNoCC.mkDerivation {
   ];
 
   installPhase = ''
-    install -D snd-hda-scodec-max98390.ko $out/lib/modules/${kernel.modDirVersion}/extra/snd-hda-scodec-max98390.ko
-    install -D snd-hda-scodec-max98390-i2c.ko $out/lib/modules/${kernel.modDirVersion}/extra/snd-hda-scodec-max98390-i2c.ko
+    make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build M=$PWD modules_install \
+      $makeFlags INSTALL_MOD_PATH=$out INSTALL_MOD_DIR=extra DEPMOD=true ${signMakeFlags}
   '';
 
   meta = with lib; {

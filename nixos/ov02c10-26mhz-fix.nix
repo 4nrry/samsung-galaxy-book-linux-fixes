@@ -33,6 +33,14 @@ let
   # one, and objtool rejects objects from a mismatched toolchain.
   clangMakeFlags = lib.optionalString kernelUsesClang
     (lib.escapeShellArgs kernel.commonMakeFlags);
+  # modules_install, not a bare copy: nixpkgs overrides Kbuild's cmd_sign so
+  # the install step writes a <module>.ko.cer beside each module, and newer
+  # aggregateModules fails the system build when one is missing (#130).
+  # Nixpkgs without that flag installs exactly as before.
+  installMakeFlags =
+    if kernelUsesClang then clangMakeFlags
+    else lib.escapeShellArgs
+      (builtins.filter (lib.hasPrefix "cmd_sign=") (kernel.commonMakeFlags or [ ]));
 
   ov02c10Module = pkgs.stdenvNoCC.mkDerivation {
     pname = "ov02c10-26mhz";
@@ -40,7 +48,10 @@ let
 
     src = ../ov02c10-26mhz-fix;
 
-    nativeBuildInputs = [ kernel.dev cc pkgs.gnumake pkgs.perl ]
+    # pahole among them: kernels whose build dir carries vmlinux (nixpkgs
+    # since 2026-10) generate module BTF and fail without it.
+    nativeBuildInputs = kernel.moduleBuildDependencies
+      ++ [ kernel.dev cc pkgs.gnumake pkgs.perl ]
       ++ lib.optionals kernelUsesClang [ pkgs.llvmPackages.lld ];
 
     buildPhase = ''
@@ -54,8 +65,9 @@ let
     # kernel/ tree, so this copy is the one modules.dep resolves to. Verified
     # against a synthetic in-tree conflict, not assumed.
     installPhase = ''
-      install -Dm644 ov02c10.ko \
-        $out/lib/modules/${kernel.modDirVersion}/updates/ov02c10.ko
+      make -C ${kernel.dev}/lib/modules/${kernel.modDirVersion}/build \
+        M=$PWD modules_install INSTALL_MOD_PATH=$out INSTALL_MOD_DIR=updates \
+        DEPMOD=true ${installMakeFlags}
     '';
 
     meta = with lib; {
