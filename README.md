@@ -148,6 +148,13 @@ For Samsung Book5 models with the OV02E10 sensor, an additional [patched libcame
 
 > **Not recommended.** This is the older proprietary stack using Intel's camera HAL (`icamerasrc`) and `v4l2-relayd`. Use [webcam-fix-libcamera](webcam-fix-libcamera/) instead — it's open-source, supports more distros, and includes on-demand activation. This legacy fix is kept for users who already have it installed or as a fallback if the libcamera stack doesn't work on their hardware.
 
+### [OLED Screen Modes & ICC Profiles](docs/screen-modes.md) — Vivid, Natural (sRGB), DCI-P3, and AdobeRGB
+
+Generates standard ICCv2 display profiles reproducing Samsung's Windows `ColorEngine` screen modes (**AMOLED Native / Vivid**, **Natural / sRGB**, **DCI-P3**, and **AdobeRGB**) on Linux Wayland compositors (KDE Plasma 6 / KWin, GNOME).
+
+- Pure userspace ICC generator ([`docs/gen_icc.py`](docs/gen_icc.py)) using `liblcms2` via Python `ctypes` — no proprietary vendor files or third-party Python packages required
+- Includes factory D65 characterization for the Galaxy Book4 Ultra 16" 2880×1800 OLED panel (`SDC4188` / `ATNA60CL07-0`) plus `--edid` support to build profiles directly from `/sys/class/drm/card*-eDP-*/edid`
+
 ## Microphone Status
 
 The Galaxy Book4/5 laptops have built-in dual array digital microphones (DMIC). Whether they work on Linux **depends on your model and audio driver**:
