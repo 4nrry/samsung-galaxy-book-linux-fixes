@@ -156,6 +156,13 @@ Hardware architecture documentation and diagnostics for Samsung platform profile
 - Covers the `nvidia-powerd` requirement that prevents discrete GPUs from remaining locked to their 55 W base TGP
 - Includes a read-only diagnostic script: [`docs/check-performance.sh`](docs/check-performance.sh)
 
+### [OLED Screen Modes & ICC Profiles](docs/screen-modes.md) — Vivid, Natural (sRGB), DCI-P3, and AdobeRGB
+
+Generates standard ICCv2 display profiles reproducing Samsung's Windows `ColorEngine` screen modes (**AMOLED Native / Vivid**, **Natural / sRGB**, **DCI-P3**, and **AdobeRGB**) on Linux Wayland compositors (KDE Plasma 6 / KWin, GNOME).
+
+- Pure userspace ICC generator ([`docs/gen_icc.py`](docs/gen_icc.py)) using `liblcms2` via Python `ctypes` — no proprietary vendor files or third-party Python packages required
+- Includes factory D65 characterization for the Galaxy Book4 Ultra 16" 2880×1800 OLED panel (`SDC4188` / `ATNA60CL07-0`) plus `--edid` support to build profiles directly from `/sys/class/drm/card*-eDP-*/edid`
+
 ## Microphone Status
 
 The Galaxy Book4/5 laptops have built-in dual array digital microphones (DMIC). Whether they work on Linux **depends on your model and audio driver**:
