@@ -1,6 +1,14 @@
 # PR #129 review — "docs: Add performance modes guide and diagnostic script for Galaxy Book laptops"
 
-VERDICT: **CHANGES REQUESTED** — not merged.
+VERDICT: **MERGED** 2026-10-25 (c0cd168) after re-check of `152b807`; approve review 5645391544.
+
+**Re-check (2026-10-25):** author pushed `152b807` addressing all 6 asks + 3 optionals. Ran it on
+Andy's NP960XGL-XG1US (driver not loaded, nvidia-powerd enabled+failed): single-line states,
+"driver is not loaded" message, status/journalctl advice. Stubbed systemctl/nvidia-smi for
+missing-unit (`not-found`, enable advice), thermald-inactive warning, working-driver paths. Doc:
+`quiet`/`power-saver` columns, mainline driver, Ubuntu preset wording. No release tag (docs only).
+
+Original verdict (2026-10-23): CHANGES REQUESTED.
 
 **Status (2026-10-23):** REQUEST_CHANGES review posted on head `f1b7fac`:
 <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/129#pullrequestreview-5635165812>
