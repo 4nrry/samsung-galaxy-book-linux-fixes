@@ -150,11 +150,11 @@ For Samsung Book5 models with the OV02E10 sensor, an additional [patched libcame
 
 ### [Performance Modes & Power Limits](docs/performance-modes.md) — CPU PL1/PL2, DTT, and NVIDIA Dynamic Boost
 
-Hardware architecture documentation and diagnostics for Samsung platform profiles (`performance`, `balanced`, `power-saver`), thermald MMIO power limits, and enabling `nvidia-powerd` to unlock up to 80 W Dynamic Boost on discrete NVIDIA models (Galaxy Book4 Ultra).
+Hardware architecture documentation and diagnostics for Samsung platform profiles (`performance`, `balanced`, `quiet` / `power-saver`), thermald MMIO power limits, and enabling `nvidia-powerd` to unlock up to 80 W Dynamic Boost on discrete NVIDIA models (Galaxy Book4 Ultra).
 
 - Explains the DTT DataVault (GDDV) and why `thermald` enforces limits via MMIO RAPL rather than MSR
 - Covers the `nvidia-powerd` requirement that prevents discrete GPUs from remaining locked to their 55 W base TGP
-- Includes a non-intrusive diagnostic script: [`docs/check-performance.sh`](docs/check-performance.sh)
+- Includes a read-only diagnostic script: [`docs/check-performance.sh`](docs/check-performance.sh)
 
 ## Microphone Status
 
