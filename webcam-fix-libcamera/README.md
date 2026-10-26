@@ -816,6 +816,41 @@ sudo ./install.sh --force-libcamera-rebuild
 > journalctl --user -u camera-relay -b | grep -i 'libcamera\|GStreamer plugin'
 > ```
 
+### Factory colour calibration (KBFC645 module, opt-in)
+
+For the **Galaxy Book4 Ultra (NP960XGL)** with the `KBFC645` camera module, an opt-in multi-illuminant tuning profile derived from Intel's Windows driver factory calibration (`.aiqb`) is provided in [`tuning/ov02c10-kbfc645.yaml`](tuning/ov02c10-kbfc645.yaml):
+
+- **5 characterised light sources** (2669 K to 5892 K) interpolated dynamically by libcamera's CCT estimator.
+- **Compensated for Simple IPA**: softened (`--ccm-strength 0.45`) with white-balance row trim (`1.03, 0.89, 0.94`) to prevent naive Grey-World AWB and lens colour shading from producing green, pink, or purple tinting on neutral walls.
+
+**Checking your hardware:**
+- On Linux, verify your model and sensor ACPI node:
+  ```bash
+  cat /sys/class/dmi/id/product_name          # e.g. 960XGL
+  cat /sys/bus/acpi/devices/OVTI02C1:00/hid   # OVTI02C1
+  ```
+- In a Windows dual-boot, you can confirm the exact module name (`KBFC645`) by checking for `OV02C10_KBFC645_MTL.aiqb` under `C:\Windows\System32\DriverStore\FileRepository\ov02c10.inf_*` (note that Samsung may multi-source modules across different batches or regions).
+
+To test this profile:
+```bash
+cd webcam-fix-libcamera
+sudo cp tuning/ov02c10-kbfc645.yaml /usr/share/libcamera/ipa/simple/ov02c10.yaml
+[[ -d /usr/local/share/libcamera/ipa/simple ]] && sudo cp tuning/ov02c10-kbfc645.yaml /usr/local/share/libcamera/ipa/simple/ov02c10.yaml
+systemctl --user restart camera-relay.service pipewire.service wireplumber.service
+```
+
+> **Note:** Re-running `./install.sh` (on updates) or `./tune-ccm.sh` overwrites `ov02c10.yaml` with the stock file, so copy `tuning/ov02c10-kbfc645.yaml` again afterwards if you want to keep it active.
+
+To revert to the stock single-matrix tuning:
+```bash
+cd webcam-fix-libcamera
+sudo cp ov02c10.yaml /usr/share/libcamera/ipa/simple/ov02c10.yaml
+[[ -d /usr/local/share/libcamera/ipa/simple ]] && sudo cp ov02c10.yaml /usr/local/share/libcamera/ipa/simple/ov02c10.yaml
+systemctl --user restart camera-relay.service pipewire.service wireplumber.service
+```
+
+The generator tool and container documentation are in [`tools/aiqb_to_libcamera.py`](tools/aiqb_to_libcamera.py) and [`tools/NOTES-aiqb-format.md`](tools/NOTES-aiqb-format.md).
+
 ### Camera upside-down after running `cam` or `qcam`
 
 Opening the sensor directly with `cam`/`qcam` resets the V4L2 flip controls when
