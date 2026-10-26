@@ -263,15 +263,18 @@ This fix provides the **raw hardware driver only** — it gets the speakers work
 
 ### Optional: Native per-amp tables (Galaxy Book4 Ultra `144d:c1d8`)
 
-If you have a dual-boot setup or a copy of your Windows partition on a **Galaxy Book4 Ultra** (`NP960XGL`, codec subsystem `144d:c1d8`, `ADIAmpDriver.sys` v1.0.0.44), you can build `/lib/firmware/max98390-galaxybook.bin` locally. When present, the driver initializes each amplifier with the per-amp TDM slot routing (`0x201B`, `0x201D`, `0x201F`, `0x2021` for Left `0x38`/`0x3C` and Right `0x39`/`0x3D`), thermal/Rdc registers, and per-pair DSM coefficients (95 words for woofers `0x38`/`0x39`, 40 words for tweeters `0x3C`/`0x3D`):
+If you have a dual-boot setup or a copy of your Windows partition on a **Galaxy Book4 Ultra** (`NP960XGL`, codec subsystem `0x144dc1d8`, `ADIAmpDriver.sys` v1.0.0.44), you can build `/lib/firmware/max98390-galaxybook.bin` locally. The script verifies that your codec `Subsystem Id` is `0x144dc1d8` (pass `--force` if building on another machine) and checks each candidate `.sys` path against the known SHA-256. When the firmware file is present, the driver initializes each amplifier with the per-amp TDM slot routing (`0x201B`, `0x201D`, `0x201F`, `0x2021` for Left `0x38`/`0x3C` and Right `0x39`/`0x3D`), thermal/Rdc registers, and per-pair DSM coefficients (95 words for woofers `0x38`/`0x39`, 40 words for tweeters `0x3C`/`0x3D`):
 
 ```bash
+# Mount the Windows partition read-only first (e.g. sudo mount -o ro /dev/nvme0n1p3 /mnt/windows)
 cd speaker-fix
 python3 extract_adi_tables.py /mnt/windows/Windows/System32/DriverStore/FileRepository/adiampdriver.inf_amd64_*/ADIAmpDriver.sys
 sudo install -m 644 max98390-galaxybook.bin /lib/firmware/
 sudo ./install.sh
 sudo reboot
 ```
+
+> **NixOS users:** Place `max98390-galaxybook.bin` in a derivation under `hardware.firmware` (under `lib/firmware/max98390-galaxybook.bin`) rather than copying to `/lib/firmware/`.
 
 Check `dmesg | grep -i max98390` after rebooting — it should log `using Windows amp tables: 35 registers, 95 DSM words` on `0x38`/`0x39` and `17 registers, 40 DSM words` on `0x3c`/`0x3d`. If `/lib/firmware/max98390-galaxybook.bin` is not present (or if you pass `windows_tuning=0` to `snd-hda-scodec-max98390`), the driver falls back to the built-in Redrix DSM tables.
 

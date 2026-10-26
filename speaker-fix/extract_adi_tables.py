@@ -8,7 +8,7 @@ and loads one DSM coefficient table per amp pair. This script reads those tables
 from the .sys on the user's Windows partition so no vendor binary is redistributed.
 
 Usage:
-    python3 extract_adi_tables.py /mnt/windows/Windows/System32/DriverStore/FileRepository/adiampdriver.inf_amd64_*/ADIAmpDriver.sys
+    python3 extract_adi_tables.py [-o max98390-galaxybook.bin] [--force] /mnt/windows/Windows/System32/DriverStore/FileRepository/adiampdriver.inf_amd64_*/ADIAmpDriver.sys
     sudo install -m 644 max98390-galaxybook.bin /lib/firmware/
 
 Output format (little endian), parsed by max98390_hda_windows.c:
@@ -18,9 +18,12 @@ Output format (little endian), parsed by max98390_hda_windows.c:
     u8 dsm_index[n_amps]                                   which DSM each amp gets
 Amp index follows the I2C address order of the driver: 0x38, 0x39, 0x3C, 0x3D.
 """
+import argparse
+import glob
 import hashlib
 import struct
-import sys
+
+TARGET_SUBSYS = "0x144dc1d8"
 
 KNOWN = {
     # sha256 of ADIAmpDriver.sys 1.0.0.44 -> table offsets for project C1D8
@@ -33,6 +36,26 @@ KNOWN = {
 
 # Registers that must differ between the left (slot 0) and right (slot 1) amp of a pair.
 SLOT_REGS = {0x201B: (0x01, 0x02), 0x201D: (0x01, 0x02), 0x201F: (0xFE, 0xFD), 0x2021: (0x00, 0x01)}
+
+
+def check_codec_subsystem():
+    found = []
+    for p in sorted(glob.glob("/proc/asound/card*/codec#*")):
+        try:
+            with open(p, encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if line.startswith("Subsystem Id:"):
+                        sub = line.split(":", 1)[1].strip().lower()
+                        if sub == TARGET_SUBSYS:
+                            return
+                        found.append(sub)
+        except OSError:
+            pass
+    det = ", ".join(found) if found else "none found in /proc/asound/card*/codec#*"
+    raise SystemExit(
+        f"refusing to build: these tables are for Galaxy Book4 Ultra codec Subsystem Id "
+        f"{TARGET_SUBSYS} (detected: {det}). Pass --force to build on another machine."
+    )
 
 
 def byte_table(b, off, n):
@@ -56,16 +79,53 @@ def dsm_table(b, off, n):
 
 
 def main():
-    if len(sys.argv) < 2:
-        raise SystemExit(__doc__)
-    path = sys.argv[1]
-    out = sys.argv[2] if len(sys.argv) > 2 else "max98390-galaxybook.bin"
-    b = open(path, "rb").read()
-    digest = hashlib.sha256(b).hexdigest()
-    if digest not in KNOWN:
-        raise SystemExit(f"unknown ADIAmpDriver.sys (sha256 {digest}); offsets only verified for "
-                         "1.0.0.44 / b24fa092…. Do not guess: report the version.")
-    k = KNOWN[digest]
+    ap = argparse.ArgumentParser(
+        description="Build max98390-galaxybook.bin from the user's own ADIAmpDriver.sys."
+    )
+    ap.add_argument(
+        "inputs",
+        nargs="+",
+        metavar="ADIAmpDriver.sys",
+        help="One or more candidate ADIAmpDriver.sys paths (e.g. from a DriverStore glob)",
+    )
+    ap.add_argument(
+        "-o",
+        "--output",
+        default="max98390-galaxybook.bin",
+        help="Output firmware path (default: max98390-galaxybook.bin)",
+    )
+    ap.add_argument(
+        "--force",
+        action="store_true",
+        help=f"Skip the /proc/asound codec Subsystem Id ({TARGET_SUBSYS}) check",
+    )
+    args = ap.parse_args()
+
+    if not args.force:
+        check_codec_subsystem()
+
+    chosen_b = None
+    chosen_digest = None
+    unknown = []
+    for path in args.inputs:
+        with open(path, "rb") as f:
+            b = f.read()
+        digest = hashlib.sha256(b).hexdigest()
+        if digest in KNOWN:
+            chosen_b = b
+            chosen_digest = digest
+            break
+        unknown.append((path, digest))
+
+    if chosen_b is None:
+        details = "; ".join(f"{p} (sha256 {d})" for p, d in unknown)
+        raise SystemExit(
+            f"unknown ADIAmpDriver.sys: {details}; offsets only verified for "
+            "1.0.0.44 / b24fa092…. Do not guess: report the version."
+        )
+
+    b = chosen_b
+    k = KNOWN[chosen_digest]
     amps = [byte_table(b, o, n) for o, n in k["amps"]]
     dsms = [dsm_table(b, o, n) for o, n in k["dsm"]]
 
@@ -84,8 +144,9 @@ def main():
     for t in dsms:
         blob += struct.pack("<H", len(t)) + b"".join(struct.pack("<HHI", r, 0, v) for r, v in t)
     blob += bytes(k["dsm_index"])
-    open(out, "wb").write(blob)
-    print(f"wrote {out} ({len(blob)} bytes): amps={[len(t) for t in amps]} "
+    with open(args.output, "wb") as f:
+        f.write(blob)
+    print(f"wrote {args.output} ({len(blob)} bytes): amps={[len(t) for t in amps]} "
           f"dsm={[len(t) for t in dsms]} sha256={hashlib.sha256(blob).hexdigest()[:16]}…")
 
 
