@@ -13,7 +13,13 @@
 #include "hda_generic.h"
 #include "max98390_hda.h"
 #include "max98390_hda_filters.h"
+#include "max98390_hda_windows.h"
 #include "max98390_regs.h"
+
+static bool windows_tuning = true;
+module_param(windows_tuning, bool, 0444);
+MODULE_PARM_DESC(windows_tuning,
+		 "Use per-amp tables from max98390-galaxybook.bin when present (default: true)");
 
 static void max98390_hda_playback_hook(struct device *dev, int action)
 {
@@ -23,21 +29,21 @@ static void max98390_hda_playback_hook(struct device *dev, int action)
 	switch (action) {
 	case HDA_GEN_PCM_ACT_OPEN:
 
-		/* Enable global and speaker amp */
-		ret = regmap_write(priv->regmap, MAX98390_R23FF_GLOBAL_EN, 0x01);
-		if (ret < 0)
-			dev_err(dev, "Failed to write GLOBAL_EN: %d\n", ret);
-
+		/* Enable speaker amp, then global (Windows "Run" order) */
 		ret = regmap_write(priv->regmap, MAX98390_R203A_AMP_EN, 0x81);
 		if (ret < 0)
 			dev_err(dev, "Failed to write AMP_EN: %d\n", ret);
 
+		ret = regmap_write(priv->regmap, MAX98390_R23FF_GLOBAL_EN, 0x01);
+		if (ret < 0)
+			dev_err(dev, "Failed to write GLOBAL_EN: %d\n", ret);
+
 		break;
 
 	case HDA_GEN_PCM_ACT_CLOSE:
-		/* Disable speaker amp and global */
-		regmap_write(priv->regmap, MAX98390_R203A_AMP_EN, 0x80);
+		/* Disable global, then speaker amp (Windows "Sleep" order) */
 		regmap_write(priv->regmap, MAX98390_R23FF_GLOBAL_EN, 0x00);
+		regmap_write(priv->regmap, MAX98390_R203A_AMP_EN, 0x80);
 		break;
 
 	default:
@@ -118,6 +124,17 @@ static int max98390_hda_init(struct max98390_hda_priv *priv)
 	regmap_write(priv->regmap, MAX98390_PCM_CLK_SETUP, 0x44);
 	regmap_write(priv->regmap, MAX98390_PCM_SR_SETUP, 0x08);
 
+	if (priv->win_fw) {
+		ret = max98390_windows_init(priv);
+		if (!ret) {
+			/* Amps stay on: the playback hook only runs with the codec quirk */
+			regmap_write(priv->regmap, MAX98390_R203A_AMP_EN, 0x81);
+			regmap_write(priv->regmap, MAX98390_R23FF_GLOBAL_EN, 0x01);
+			return 0;
+		}
+		dev_warn(priv->dev, "Windows amp tables failed (%d), using built-in DSM\n", ret);
+	}
+
 	/* RESET EN - Write 0x00 to 0x23FF */
 	regmap_write(priv->regmap, MAX98390_R23FF_GLOBAL_EN, 0x00);
 
@@ -155,15 +172,23 @@ int max98390_hda_probe(struct device *dev, const char *device_name,
 	priv->i2c_addr = i2c_addr;
 	dev_set_drvdata(dev, priv);
 
+	/* Loaded once and kept, so resume can re-run init without the firmware loader */
+	if (windows_tuning)
+		max98390_windows_load(priv);
+
 	ret = max98390_hda_init(priv);
 	if (ret)
-		return ret;
+		goto err_release;
 
 	ret = component_add(dev, &max98390_hda_comp_ops);
 	if (ret)
-		return ret;
+		goto err_release;
 
 	return 0;
+
+err_release:
+	max98390_windows_release(priv);
+	return ret;
 }
 EXPORT_SYMBOL_NS_GPL(max98390_hda_probe, "SND_HDA_SCODEC_MAX98390");
 
@@ -177,6 +202,9 @@ void max98390_hda_remove(struct device *dev)
 		/* Disable amp on removal */
 		regmap_write(priv->regmap, MAX98390_R203A_AMP_EN, 0x80);
 	}
+
+	if (priv)
+		max98390_windows_release(priv);
 }
 EXPORT_SYMBOL_NS_GPL(max98390_hda_remove, "SND_HDA_SCODEC_MAX98390");
 

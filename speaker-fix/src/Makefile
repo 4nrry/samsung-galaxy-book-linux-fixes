@@ -5,7 +5,7 @@ KDIR ?= /lib/modules/$(KVER)/build
 obj-m += snd-hda-scodec-max98390.o
 obj-m += snd-hda-scodec-max98390-i2c.o
 
-snd-hda-scodec-max98390-y := max98390_hda.o max98390_hda_filters.o
+snd-hda-scodec-max98390-y := max98390_hda.o max98390_hda_filters.o max98390_hda_windows.o
 snd-hda-scodec-max98390-i2c-y := max98390_hda_i2c.o
 
 all:

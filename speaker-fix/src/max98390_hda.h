@@ -9,6 +9,8 @@
 #include <linux/regmap.h>
 #include <sound/hda_codec.h>
 
+struct firmware;
+
 enum max98390_hda_bus_type {
 	MAX98390_HDA_I2C,
 };
@@ -21,6 +23,13 @@ struct max98390_hda_priv {
 	int index;
 	const char *acpi_subsystem_id;
 	int i2c_addr;  /* I2C address for speaker identification */
+
+	/* Optional Windows-matching tables (max98390_hda_windows.c) */
+	const struct firmware *win_fw;
+	const u8 *win_regs;
+	u16 win_nregs;
+	const u8 *win_dsm;
+	u16 win_ndsm;
 };
 
 int max98390_hda_probe(struct device *dev, const char *device_name,
