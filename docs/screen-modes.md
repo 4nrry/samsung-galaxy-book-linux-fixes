@@ -4,7 +4,7 @@ On Windows, Samsung Settings provides a **Screen mode** selector (**AMOLED Nativ
 
 Reverse engineering of Samsung's `ColorEngine.exe` (`SamsungColorEngineService`) on the **Galaxy Book4 Ultra (`NP960XGL`, 16" 2880×1800 120 Hz OLED panel `SDC4188` / `ATNA60CL07-0`)** shows that **none of the screen modes use ACPI, firmware, DPCD, or DDC/CI**. Instead, switching modes on Windows simply swaps the display's active ICC profile via Windows Color System (`WcsSetDefaultColorProfile` / `ColorProfileSetDisplayDefaultAssociation`).
 
-Because modern Linux Wayland compositors (such as **KDE Plasma 6 / KWin** and **GNOME / Mutter**) support per-output ICC color management, all four gamut modes can be reproduced natively on Linux using standard open-source ICC profiles generated from the panel's chromaticity coordinates.
+Because modern Linux Wayland compositors (confirmed on **KDE Plasma 6 / KWin**; also supported by recent **GNOME / Mutter** via colord) support per-output ICC color management, all four gamut modes can be reproduced natively on Linux using standard open-source ICCv4 profiles generated from the panel's chromaticity coordinates.
 
 ---
 
@@ -17,7 +17,7 @@ You can verify your panel's EDID manufacturer/product ID and model string withou
 ```bash
 python3 -c '
 import glob
-for p in sorted(glob.glob("/sys/class/drm/card*-eDP-*/edid")):
+for p in sorted(glob.glob("/sys/class/drm/card*-*/edid")):
     e = open(p, "rb").read()
     if len(e) >= 128:
         mfg = (e[8] << 8) | e[9]
@@ -32,7 +32,19 @@ On the Galaxy Book4 Ultra, this prints:
 /sys/class/drm/card1-eDP-1/edid: SDC4188
 ```
 
-> **Other Galaxy Book OLED panels:** Passing `--edid` to `gen_icc.py` reads the R/G/B primaries and native white point directly from `/sys/class/drm/card*-eDP-*/edid` (bytes `0x19–0x22`), allowing you to generate `-edid.icc` profiles from your own panel's EDID block.
+### Other Galaxy Book Panels & External Wide-Gamut Monitors
+
+Because the KWin gamut emulation math ($P = M_{\text{sRGB}} \cdot M_{\text{target}}^{-1} \cdot N$) depends only on a display's native primaries $N$, `gen_icc.py` can also generate the same four modes (**Vivid / Native**, **Natural / sRGB**, **DCI-P3**, and **AdobeRGB**) for **any other Galaxy Book panel or external wide-gamut monitor** (DisplayPort / HDMI / USB-C) directly from its kernel EDID block:
+
+- `--edid [PATH]`: reads the display's R/G/B primaries (bytes `0x19–0x22`), native white point, gamma (`0x17`), and manufacturer/product ID (`<mfg><prod>`, plus descriptor model string) from `/sys/class/drm/card*-*/edid`, naming the output files `<panel_id>-{vivid,natural,p3,adobergb}.icc`.
+- `--edid-d65`: pairs the EDID primaries with a standard **D65 `(0.3127, 0.3290)`** white point (recommended when generating profiles for external monitors or when you want neutral white balance without chromatic adaptation shifts).
+- `--no-default`: skips generating the default `sdc4188-*.icc` factory set when building profiles for another display.
+
+Example — generating `vivid`, `natural`, `p3`, and `adobergb` profiles for an external DisplayPort monitor (such as an AOC 34" `U34G4C` / `AOCB469` on `card1-DP-2`):
+```bash
+python3 docs/gen_icc.py ~/.local/share/icc --no-default --edid /sys/class/drm/card1-DP-2/edid --edid-d65
+# Writes: aocb469-vivid.icc, aocb469-natural.icc, aocb469-p3.icc, aocb469-adobergb.icc
+```
 
 ---
 
@@ -44,7 +56,7 @@ On the Galaxy Book4 Ultra, this prints:
 python3 docs/gen_icc.py ~/.local/share/icc --edid
 ```
 
-This creates two sets of four ICCv2 profiles in `~/.local/share/icc/`:
+This creates two sets of four ICCv4 profiles in `~/.local/share/icc/`:
 
 | Profile | Equivalent Samsung Mode | Description |
 |---|---|---|
@@ -97,7 +109,9 @@ kscreen-doctor output.eDP-1.iccprofile.""
 
 ### GNOME (Wayland / X11)
 1. Open **Settings → Color**.
-2. Select the built-in OLED display, click **Add profile → Import file…**, and choose the desired `.icc` file from `~/.local/share/icc/`.
+2. Select the display, click **Add profile → Import file…**, and choose the desired `.icc` file from `~/.local/share/icc/`.
+
+> **Note:** These matrix/TRC ICCv4 profiles have been tested on **KDE Plasma 6 (Wayland)**. Older GNOME / Mutter releases only applied a profile's 1D `vcgt` calibration curves and ignored matrix tags for full-screen desktop color management; recent Mutter Wayland color management is required for gamut mapping.
 
 ---
 
@@ -128,7 +142,7 @@ $$P = M_{\text{sRGB}} \cdot M_{\text{target}}^{-1} \cdot N$$
 
 - For **Natural (sRGB)** ($M_{\text{target}} = M_{\text{sRGB}}$): $P = N$ (the panel's true native primaries).
 - For **Vivid (AMOLED Native)** ($M_{\text{target}} = N$): $P = M_{\text{sRGB}}$ (identity mapping in KWin).
-- For **DCI-P3** and **AdobeRGB**: `gen_icc.py` computes $P$, extracts its synthetic $(x, y)$ primaries while preserving the white point ($P \cdot [1,1,1]^T = N \cdot [1,1,1]^T$), and writes a standard matrix/TRC ICC profile via `liblcms2`.
+- For **DCI-P3** and **AdobeRGB**: `gen_icc.py` computes $P$, extracts its synthetic $(x, y)$ primaries along with the chromaticity of $P \cdot [1,1,1]^T$, and writes a standard matrix/TRC ICCv4 profile via `liblcms2`.
 
 ### Notes on Color Tone and HDR+
 - **Color Tone (Cool / Warm):** In Windows, `ColorEngine.exe` applies diagonal RGB multipliers (`ColortoneValue` `0..4`) by uploading a $17 \times 17 \times 17$ 3D LUT via Intel IGCL (`ctlPixelTransformationSetConfig`). On Linux, equivalent warm color temperature adjustments are natively handled by KDE **Night Light** or GNOME **Night Light**.
