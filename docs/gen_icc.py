@@ -198,12 +198,14 @@ def main():
     ap.add_argument("outdir", nargs="?", default=".")
     ap.add_argument("--edid", nargs="?", const="auto", metavar="PATH",
                     help="build a set from a display EDID (primaries + native white); "
-                         "default path: /sys/class/drm/card*-eDP-*/edid")
+                         "default: first /sys/class/drm/card*-eDP-*/edid, else any connected display")
     ap.add_argument("--edid-d65", action="store_true",
                     help="use D65 white point with the EDID primaries (recommended for external monitors)")
     ap.add_argument("--no-default", action="store_true",
                     help="skip the default Galaxy Book4 Ultra (SDC4188) factory profile set")
     a = ap.parse_args()
+    if a.no_default and not a.edid:
+        ap.error("--no-default needs --edid (nothing to generate)")
     os.makedirs(a.outdir, exist_ok=True)
     lib = load_lcms()
 
@@ -220,7 +222,7 @@ def main():
         prefix = panel_id.lower()
         if panel_id == "SDC4188":
             title = "Galaxy Book4 Ultra OLED"
-            suffix = "" if a.edid_d65 else "-edid"
+            suffix = "-edid-d65" if a.edid_d65 else "-edid"
             label = " [EDID D65]" if a.edid_d65 else " [EDID]"
         else:
             title = f"{panel_id} {model_str}".strip()
