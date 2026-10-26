@@ -158,10 +158,10 @@ Hardware architecture documentation and diagnostics for Samsung platform profile
 
 ### [OLED Screen Modes & ICC Profiles](docs/screen-modes.md) — Vivid, Natural (sRGB), DCI-P3, and AdobeRGB
 
-Generates standard ICCv2 display profiles reproducing Samsung's Windows `ColorEngine` screen modes (**AMOLED Native / Vivid**, **Natural / sRGB**, **DCI-P3**, and **AdobeRGB**) on Linux Wayland compositors (KDE Plasma 6 / KWin, GNOME).
+Generates standard ICCv4 display profiles reproducing Samsung's Windows `ColorEngine` screen modes (**AMOLED Native / Vivid**, **Natural / sRGB**, **DCI-P3**, and **AdobeRGB**) on Linux Wayland compositors (tested on KDE Plasma 6 / KWin).
 
 - Pure userspace ICC generator ([`docs/gen_icc.py`](docs/gen_icc.py)) using `liblcms2` via Python `ctypes` — no proprietary vendor files or third-party Python packages required
-- Includes factory D65 characterization for the Galaxy Book4 Ultra 16" 2880×1800 OLED panel (`SDC4188` / `ATNA60CL07-0`) plus `--edid` support to build profiles directly from `/sys/class/drm/card*-eDP-*/edid`
+- Includes factory D65 characterization for the Galaxy Book4 Ultra 16" 2880×1800 OLED panel (`SDC4188` / `ATNA60CL07-0`), plus `--edid [PATH]` / `--edid-d65` support to generate matching screen-mode profiles for other Galaxy Book panels and external wide-gamut monitors directly from `/sys/class/drm/card*-*/edid`
 
 ## Microphone Status
 

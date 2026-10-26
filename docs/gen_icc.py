@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Generate Galaxy Book4 Ultra (Samsung OLED SDC4188) "Screen mode" ICC profiles
-for KDE Plasma 6 (KWin per-output color profile) and GNOME/colord, from the panel's primaries.
+"""Generate Galaxy Book4 Ultra (Samsung OLED SDC4188) and generic EDID "Screen mode"
+ICCv4 profiles for KDE Plasma 6 (KWin per-output color profile) and GNOME/colord.
 
 On Windows, Samsung's ColorEngine only swaps the monitor's ICC profile:
-  Vivid (AMOLED native) -> no correction       => on Linux: no profile (or sdc4188-vivid.icc)
-  Natural (sRGB)        -> sRGB emulation      => on Linux: native panel profile (sdc4188-natural.icc)
-  P3 / AdobeRGB         -> treat desktop RGB as P3 / AdobeRGB (sdc4188-p3.icc / sdc4188-adobergb.icc)
+  Vivid (AMOLED native) -> no correction       => on Linux: no profile (or *-vivid.icc)
+  Natural (sRGB)        -> sRGB emulation      => on Linux: native panel profile (*-natural.icc)
+  P3 / AdobeRGB         -> treat desktop RGB as P3 / AdobeRGB (*-p3.icc / *-adobergb.icc)
 KWin assumes desktop content is sRGB and maps it through the output profile,
 so an "emulation" profile P must satisfy  inv(P) * M_sRGB = inv(N) * M_target,
 i.e.  P = M_sRGB * inv(M_target) * N   (N = native panel RGB->XYZ).
 
 Uses liblcms2 through ctypes (installed by default with KDE/GNOME). No numpy needed.
-Usage:  python3 docs/gen_icc.py [outdir] [--edid [PATH]]
+Usage:  python3 docs/gen_icc.py [outdir] [--edid [PATH]] [--edid-d65] [--no-default]
 """
 import ctypes
 import ctypes.util
@@ -58,13 +58,16 @@ def rgb_to_xyz(prims, white=D65):
     return [[m[r][c] * s[c] for c in range(3)] for r in range(3)]
 
 
-def matrix_to_prims(m):
+def matrix_to_prims_and_white(m):
+    """Extract primary (x, y) coordinates and the white point (x, y) of M*[1,1,1]."""
     out = []
     for c in range(3):
         X, Y, Z = m[0][c], m[1][c], m[2][c]
         t = X + Y + Z
         out.append((X / t, Y / t))
-    return tuple(out)
+    wX, wY, wZ = sum(m[0]), sum(m[1]), sum(m[2])
+    wt = wX + wY + wZ
+    return tuple(out), (wX / wt, wY / wt)
 
 
 class xyY(ctypes.Structure):
@@ -77,7 +80,10 @@ class xyYTriple(ctypes.Structure):
 
 def load_lcms():
     name = ctypes.util.find_library("lcms2") or "liblcms2.so.2"
-    lib = ctypes.CDLL(name)
+    try:
+        lib = ctypes.CDLL(name)
+    except OSError as e:
+        raise SystemExit(f"liblcms2 not found ({e}); install liblcms2-2 / lcms2")
     lib.cmsBuildGamma.restype = ctypes.c_void_p
     lib.cmsBuildGamma.argtypes = [ctypes.c_void_p, ctypes.c_double]
     lib.cmsCreateRGBProfile.restype = ctypes.c_void_p
@@ -85,10 +91,14 @@ def load_lcms():
                                         ctypes.c_void_p * 3]
     lib.cmsMLUalloc.restype = ctypes.c_void_p
     lib.cmsMLUalloc.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    lib.cmsMLUsetASCII.restype = ctypes.c_int
     lib.cmsMLUsetASCII.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p,
                                    ctypes.c_char_p]
+    lib.cmsWriteTag.restype = ctypes.c_int
     lib.cmsWriteTag.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p]
+    lib.cmsSaveProfileToFile.restype = ctypes.c_int
     lib.cmsSaveProfileToFile.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    lib.cmsCloseProfile.restype = ctypes.c_int
     lib.cmsCloseProfile.argtypes = [ctypes.c_void_p]
     lib.cmsFreeToneCurve.argtypes = [ctypes.c_void_p]
     lib.cmsMLUfree.argtypes = [ctypes.c_void_p]
@@ -96,7 +106,7 @@ def load_lcms():
 
 
 def read_edid(path):
-    """Return (primaries, white, panel_id, model_str) from an EDID 1.x base block."""
+    """Return (primaries, white, panel_id, model_str, gamma) from an EDID 1.x base block."""
     with open(path, "rb") as f:
         e = f.read()
     if len(e) < 128 or e[:8] != b"\x00\xff\xff\xff\xff\xff\xff\x00":
@@ -118,25 +128,28 @@ def read_edid(path):
     lows = [(lo1 >> 6) & 3, (lo1 >> 4) & 3, (lo1 >> 2) & 3, lo1 & 3,
             (lo2 >> 6) & 3, (lo2 >> 4) & 3, (lo2 >> 2) & 3, lo2 & 3]
     v = [((e[0x1B + i] << 2) | lows[i]) / 1024 for i in range(8)]
-    return ((v[0], v[1]), (v[2], v[3]), (v[4], v[5])), (v[6], v[7]), panel_id, model_str
+    g_raw = e[0x17]
+    gamma = (g_raw + 100) / 100.0 if g_raw != 0xFF else GAMMA
+    return ((v[0], v[1]), (v[2], v[3]), (v[4], v[5])), (v[6], v[7]), panel_id, model_str, gamma
 
 
 def find_edid():
     import glob
-    for p in sorted(glob.glob("/sys/class/drm/card*-eDP-*/edid")):
-        try:
-            with open(p, "rb") as f:
-                if len(f.read()) >= 128:
-                    return p
-        except OSError:
-            pass
-    raise SystemExit("no eDP EDID found under /sys/class/drm; pass a path to --edid")
+    for pat in ("/sys/class/drm/card*-eDP-*/edid", "/sys/class/drm/card*-*/edid"):
+        for p in sorted(glob.glob(pat)):
+            try:
+                with open(p, "rb") as f:
+                    if len(f.read()) >= 128:
+                        return p
+            except OSError:
+                pass
+    raise SystemExit("no EDID found under /sys/class/drm; pass a path to --edid")
 
 
-def write_profile(lib, path, prims, desc, white_xy=D65):
+def write_profile(lib, path, prims, desc, white_xy=D65, gamma=GAMMA):
     white = xyY(white_xy[0], white_xy[1], 1.0)
     tri = xyYTriple(*(xyY(x, y, 1.0) for x, y in prims))
-    curve = lib.cmsBuildGamma(None, GAMMA)
+    curve = lib.cmsBuildGamma(None, gamma)
     curves = (ctypes.c_void_p * 3)(curve, curve, curve)
     h = lib.cmsCreateRGBProfile(ctypes.byref(white), ctypes.byref(tri), curves)
     if not h:
@@ -147,29 +160,33 @@ def write_profile(lib, path, prims, desc, white_xy=D65):
         lib.cmsMLUsetASCII(mlu, b"en", b"US", text.encode())
         lib.cmsWriteTag(h, sig, mlu)
         lib.cmsMLUfree(mlu)
-    lib.cmsSaveProfileToFile(h, path.encode())
+    ok = lib.cmsSaveProfileToFile(h, path.encode())
     lib.cmsCloseProfile(h)
     lib.cmsFreeToneCurve(curve)
+    if not ok:
+        raise SystemExit(f"lcms2 failed to save {path}")
 
 
-def build_set(native, white, suffix, label):
-    """Profiles for one characterization of the panel (native primaries + white)."""
+def build_set(native, white, prefix, suffix, title, label, gamma=GAMMA):
+    """Profiles for one characterization of a display (native primaries + white)."""
     N, S = rgb_to_xyz(native, white), rgb_to_xyz(SRGB)
     # Vivid (T = N) => P = S * inv(N) * N = S (identity gamut mapping in KWin).
     profiles = {
-        f"sdc4188-vivid{suffix}.icc":
-            (SRGB, white, f"Galaxy Book4 Ultra OLED - Vivid (AMOLED native){label}"),
-        f"sdc4188-natural{suffix}.icc":
-            (native, white, f"Galaxy Book4 Ultra OLED - Natural (sRGB){label}"),
+        f"{prefix}-vivid{suffix}.icc":
+            (SRGB, D65, f"{title} - Vivid (Native){label}", gamma),
+        f"{prefix}-natural{suffix}.icc":
+            (native, white, f"{title} - Natural (sRGB){label}", gamma),
     }
     for name, target, tl in (("p3", P3, "P3"), ("adobergb", ADOBE, "AdobeRGB")):
         T = rgb_to_xyz(target)
         P = mul(mul(S, inv3(T)), N)
-        # P keeps the panel's own white (P*[1,1,1] = N*[1,1,1]).
-        profiles[f"sdc4188-{name}{suffix}.icc"] = (matrix_to_prims(P), white,
-                                                    f"Galaxy Book4 Ultra OLED - {tl} emulation{label}")
-        # Sanity check against Samsung's MHC2 matrices:
-        # T * inv(N) should be close (not identical: different adaptation/whitepoint handling).
+        # Extract both the synthetic primaries and P*[1,1,1]'s chromaticity so the written
+        # profile matches P even when the panel's white point differs from D65.
+        p_prims, p_white = matrix_to_prims_and_white(P)
+        profiles[f"{prefix}-{name}{suffix}.icc"] = (
+            p_prims, p_white, f"{title} - {tl} emulation{label}", gamma
+        )
+        # Sanity check against MHC2-style 3x3 gamut matrices:
         M = mul(T, inv3(N))
         print(f"{tl}{label}: T*inv(N) = " + " | ".join(" ".join(f"{v:7.4f}" for v in r) for r in M))
     return profiles
@@ -177,29 +194,44 @@ def build_set(native, white, suffix, label):
 
 def main():
     import argparse
-    ap = argparse.ArgumentParser(description="Galaxy Book4 Ultra screen-mode ICC profiles")
+    ap = argparse.ArgumentParser(description="Generate display screen-mode ICCv4 profiles")
     ap.add_argument("outdir", nargs="?", default=".")
     ap.add_argument("--edid", nargs="?", const="auto", metavar="PATH",
-                    help="also build a set from the panel EDID (primaries + native white); "
+                    help="build a set from a display EDID (primaries + native white); "
                          "default path: /sys/class/drm/card*-eDP-*/edid")
+    ap.add_argument("--edid-d65", action="store_true",
+                    help="use D65 white point with the EDID primaries (recommended for external monitors)")
+    ap.add_argument("--no-default", action="store_true",
+                    help="skip the default Galaxy Book4 Ultra (SDC4188) factory profile set")
     a = ap.parse_args()
     os.makedirs(a.outdir, exist_ok=True)
     lib = load_lcms()
 
-    # Default set: primaries from Samsung's SDC4188.icm, white D65 (as Samsung's profile claims).
-    profiles = build_set(NATIVE, D65, "", "")
+    profiles = {}
+    if not a.no_default:
+        # Default set: primaries from Samsung's SDC4188.icm, white D65 (as Samsung's profile claims).
+        profiles.update(build_set(NATIVE, D65, "sdc4188", "", "Galaxy Book4 Ultra OLED", ""))
+
     if a.edid:
         path = find_edid() if a.edid == "auto" else a.edid
-        prims, white, panel_id, model_str = read_edid(path)
+        prims, white, panel_id, model_str, gamma = read_edid(path)
         tag = f"{panel_id} ({model_str})" if model_str else panel_id
-        print(f"EDID {path} [{tag}]: primaries={prims} white={white} (Samsung ICC: {NATIVE}, D65)")
-        # Note: EDID chromaticity is nominal (10-bit, per model). The two sets bracket the
-        # truth; only a colorimeter measurement gives this unit's real primaries and white.
-        profiles.update(build_set(prims, white, "-edid", " [EDID]"))
+        print(f"EDID {path} [{tag}]: primaries={prims} white={white} gamma={gamma}")
+        prefix = panel_id.lower()
+        if panel_id == "SDC4188":
+            title = "Galaxy Book4 Ultra OLED"
+            suffix = "" if a.edid_d65 else "-edid"
+            label = " [EDID D65]" if a.edid_d65 else " [EDID]"
+        else:
+            title = f"{panel_id} {model_str}".strip()
+            suffix = ""
+            label = ""
+        use_white = D65 if a.edid_d65 else white
+        profiles.update(build_set(prims, use_white, prefix, suffix, title, label, gamma))
 
-    for fname, (prims, white, desc) in profiles.items():
+    for fname, (prims, white, desc, gamma) in profiles.items():
         path = os.path.join(a.outdir, fname)
-        write_profile(lib, path, prims, desc, white)
+        write_profile(lib, path, prims, desc, white, gamma)
         print(f"wrote {path}  white={tuple(round(v, 4) for v in white)} "
               f"primaries={[(round(x, 4), round(y, 4)) for x, y in prims]}")
 
