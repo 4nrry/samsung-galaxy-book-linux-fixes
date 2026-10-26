@@ -1,6 +1,7 @@
 # PR #133 review — "feat(speaker-fix): optional Windows-matching MAX98390 init for Book4 Ultra"
 
-VERDICT: **CHANGES REQUESTED** on head `64b33ee`; review 5659451001:
+VERDICT: **MERGED** 2026-10-26 (d38f960) on head `632a9c3`; approve review 5659566782.
+Round 1 CHANGES REQUESTED on `64b33ee`, review 5659451001:
 <https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/133#pullrequestreview-5659451001>
 
 Author: **@4nrry** (NP960XGL, same author as #77/#128/#129/#131/#132). 1 commit, +323/−11, MERGEABLE.
@@ -29,3 +30,15 @@ byte table + per-pair DSM words, falls back to Redrix blobs when absent / `windo
 
 Side note for #93: Windows itself sets tweeter `0x23BA=0x8D` on the Ultra (woofers `0x94`, not our
 `0xA0`), which weakens the R3 "driver attenuates tweeters" idea, at least on this model.
+
+## Round 2 — `632a9c3` (script + README only, driver C unchanged)
+
+All asks addressed. Re-tested with the synthetic `.sys`:
+- argparse, `nargs="+"` inputs, `-o` output: known `.sys` picked whether it sorts first or second;
+  both inputs byte-identical afterwards; blob identical to round 1. No-match error lists every path.
+- Codec check: passes on Andy's `0x144dc1d8`; simulated `0x144dc1a8` refused; `--force` overrides.
+- README: `-o ro` mount hint, NixOS `hardware.firmware` note.
+- Leftover nit (posted, optional): nonexistent input path → Python traceback, not a one-line error.
+
+Not released: needs a tag if users installing from releases should get it (it also changes the
+playback-hook enable order on the default path).
