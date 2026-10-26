@@ -128,6 +128,9 @@ def lens_shading(b, recs, name=28):
     Channel order follows the sensor colour_order (general_data); for color_order 0 the
     2x2 cell is [[Gr, R], [B, Gb]] -> channels 0=Gr 1=R 2=B 3=Gb (check on the device!).
     """
+    if name not in recs:
+        desc = NAME_IDS.get(name, f"record {name}")
+        raise SystemExit(f"record {name} ({desc}) not present in this .aiqb file")
     rec, size = recs[name]
     base = rec + 8
     idx = list(b[base:base + 16])
