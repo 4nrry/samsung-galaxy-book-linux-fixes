@@ -78,3 +78,20 @@ DriverStore check.
 No release is needed for the merge alone. This is opt-in docs + a tool, and installed
 behaviour doesn't change. Bundle it into the next tag (v0.3.92, with the #127 Electron
 wording fix).
+
+## Outcome (2026-10-26)
+
+@4nrry pushed `929d389` and marked the PR ready (comment 6425945732). Daylight +
+overhead validation: the shipped 0.45 / (1.03, 0.89, 0.94) profile gives a neutral
+mic (R/G 1.015, B/G 1.008) and neutral paper, while stock reads magenta and raw
+factory reads green. All 4 follow-ups were applied **by the author on the branch**:
+section moved below "Editing … has no effect", `cd webcam-fix-libcamera` added,
+reinstall/tune-ccm revert note added, and the hardware check is worded as model +
+sensor on Linux / module on Windows. The record 33 guard was verified:
+`CIFME14 --lsc-ratio` gives a clean `SystemExit` (exit 1) and `1BG203N3` still writes
+the JSON. The tuning YAML and NOTES are unchanged from the approved `e4b45e4`.
+
+**MERGED** as `1125ff6`. Thank-you comment:
+<https://github.com/Andycodeman/samsung-galaxy-book-linux-fixes/pull/128#issuecomment-6427844340>.
+No follow-up commits are needed on `main`. Not released yet: it's an opt-in file +
+tool and installed behaviour is unchanged. The latest release is still v0.3.95.
